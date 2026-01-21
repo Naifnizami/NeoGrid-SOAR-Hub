@@ -1,0 +1,4 @@
+asset_id,hostname,ip_address,department,criticality,owner,business_hours
+NGF-CORE-01,dxb-sql-prod,10.0.5.5,Finance,CRITICAL,admin_jaffer,0800-1800
+NGF-EDGE-99,uae-cloud-gateway,10.0.80.50,Infrastructure,HIGH,system_service,24/7
+NGF-WK-102,hr-desktop-user,192.168.1.102,HR,LOW,user_sarah,0900-1700

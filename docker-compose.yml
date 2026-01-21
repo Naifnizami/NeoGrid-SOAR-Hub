@@ -1,0 +1,49 @@
+services:
+  # --- The Cognitive Brain ---
+  ai-analyst:
+    build: ./services/ai-analyst
+    container_name: nif_ai_analyst
+    ports:
+      - "8001:8001"
+    env_file: .env
+    volumes:
+      - ./shared:/app/shared:ro # Mount corporate governance files
+    networks:
+      - ngr_soc_network
+    restart: unless-stopped
+
+  # --- The Orchestration Engine ---
+  soar-bridge:
+    build: ./services/soar-bridge
+    container_name: nif_soar_bridge
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      - ai-analyst
+    volumes:
+      - ./shared:/app/shared:rw # Mount asset database
+      - ./services/soar-bridge/config:/app/config # Live settings sync
+    networks:
+      - ngr_soc_network
+    restart: unless-stopped
+
+  # --- The Simulation Dispatcher ---
+  telemetry-gen:
+    build: ./services/telemetry-gen
+    container_name: nif_telemetry_sim
+    depends_on:
+      - soar-bridge
+    volumes:
+      # CRITICAL: Maps your code live so you can change attack scenarios
+      - ./services/telemetry-gen:/app 
+    environment:
+      - BRIDGE_URL=http://soar-bridge:8000/alert
+    # UPDATED COMMAND: Start listener, send to background (&), then keep alive with tail
+    command: sh -c "python src/listener.py & tail -f /dev/null"
+    networks:
+      - ngr_soc_network
+
+networks:
+  ngr_soc_network:
+    driver: bridge

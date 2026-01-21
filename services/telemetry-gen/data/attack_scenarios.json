@@ -1,0 +1,23 @@
+{
+  "1": {
+    "hostname": "dxb-sql-prod",
+    "ip_address": "10.0.5.5",
+    "command": "powershell.exe -NoP -NonI -W Hidden -Enc JABzID0gTmV3LU9ia...",
+    "severity": "High",
+    "description": "True Positive: Prohibited Encoded Command on SQL Prod"
+  },
+  "2": {
+    "hostname": "uae-cloud-gateway",
+    "ip_address": "10.0.80.50",
+    "command": "curl -X POST https://api.backup.uae -u system_service",
+    "severity": "Info",
+    "description": "False Positive: Authorized Cloud Gateway Sync"
+  },
+  "3": {
+    "hostname": "hr-desktop-user",
+    "ip_address": "192.168.1.102",
+    "command": "powershell.exe -Command 'Get-Process -Name chrome'",
+    "severity": "Low",
+    "description": "Suspicious: Unusual User Behavior on HR Desktop"
+  }
+}

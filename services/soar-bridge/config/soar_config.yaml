@@ -1,0 +1,28 @@
+# NeoGrid Financial (NGF) SOAR Logic Configuration
+
+system:
+  org_name: "NeoGrid Financial"
+  operating_timezone: "Asia/Dubai"
+
+jira_settings:
+  # The Key shown in your Jira Project settings
+  project_key: "KAN"
+  
+  # IDs found via your check_jira.py script
+  transitions:
+    archive_id: "2"  # Sends ticket to ARCHIVED (FP path)
+    done_id: "41"     # Standard closure (Analyst path)
+
+  defaults:
+    issue_type: "Task"
+
+triage_logic:
+  # Deterministic markers the AI provides in its report
+  tags:
+    malicious: "MALICIOUS"
+    authorized: "AUTHORIZED"
+    suspicious: "SUSPICIOUS"
+
+network:
+  ai_analyst_endpoint: "http://ai-analyst:8001/analyze"
+  agent_endpoint: "http://telemetry-gen:5000/block"

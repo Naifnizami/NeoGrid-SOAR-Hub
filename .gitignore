@@ -1,0 +1,16 @@
+# Security Keys
+.env
+
+# Local Memory/Logs
+shared/incident_state.json
+services/telemetry-gen/__pycache__/
+services/soar-bridge/__pycache__/
+services/ai-analyst/__pycache__/
+services/soar-bridge/src/__pycache__/
+services/ai-analyst/src/__pycache__/
+services/telemetry-gen/src/__pycache__/
+C:\SOC-INTEGRATED-PLATFORM\services\ai-analyst\tools\__pycache__
+
+# OS files
+.DS_Store
+Thumbs.db
