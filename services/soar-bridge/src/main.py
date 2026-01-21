@@ -27,6 +27,7 @@ cfg = load_soar_config()
 app = FastAPI(title=f"{cfg['system']['org_name']} SOAR Bridge")
 
 JIRA_ARCHIVE_ID = os.getenv("JIRA_ARCHIVE_TRANSITION_ID", cfg['jira_settings']['transitions']['archive_id'])
+ANALYST_ACCOUNT_ID = os.getenv("JIRA_ANALYST_ID")
 AI_ENDPOINT = cfg['network']['ai_analyst_endpoint']
 AGENT_ENDPOINT = cfg['network']['agent_endpoint']
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
