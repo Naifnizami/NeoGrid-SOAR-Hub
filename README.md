@@ -153,7 +153,7 @@ docker-compose up --build
 ### ▶️ Run Simulation Command
 
 ~~~bash
-docker-compose exec telemetry-gen python src/sender.py [1|2|3]
+docker-compose exec nif_telemetry_sim python src/sender.py 1|2|3
 ~~~
 
 Where:
