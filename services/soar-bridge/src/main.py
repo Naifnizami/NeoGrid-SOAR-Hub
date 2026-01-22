@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# 1. SETUP
+# 1. PATH SETUP
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_DIR)))
 load_dotenv(dotenv_path=os.path.join(ROOT_DIR, ".env")) 
@@ -19,6 +19,48 @@ CONFIG_PATH = "/app/config/soar_config.yaml"
 ASSET_DB_PATH = "/app/shared/asset_inventory.csv"
 STATE_FILE_PATH = "/app/shared/incident_state.json"
 
+# --- [ IMPROVED STATEFUL MEMORY - SINGLE DEFINITION ] ---
+
+def load_state():
+    """Reads the 'Memory' file, creating it if it doesn't exist."""
+    if not os.path.exists(STATE_FILE_PATH):
+        print(f"[*] INITIALIZATION: State file missing. Creating fresh memory at {STATE_FILE_PATH}")
+        try:
+            os.makedirs(os.path.dirname(STATE_FILE_PATH), exist_ok=True)
+            with open(STATE_FILE_PATH, 'w') as f:
+                json.dump({}, f)
+        except Exception as e:
+            print(f"[🚨] ERROR: Could not create state file: {e}")
+            return {}
+
+    try:
+        with open(STATE_FILE_PATH, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_state(state):
+    """Writes updated memory to disk."""
+    try:
+        with open(STATE_FILE_PATH, 'w') as f:
+            json.dump(state, f, indent=4)
+    except Exception as e:
+        print(f"[!] Error saving state: {e}")
+
+def check_history(ip):
+    state = load_state()
+    if ip in state:
+        return True, state[ip]['count'], state[ip]['ticket']
+    return False, 0, None
+
+def update_history(ip, jira_key):
+    state = load_state()
+    count = state.get(ip, {}).get('count', 0)
+    state[ip] = {'count': count + 1, 'ticket': jira_key, 'last_seen': str(datetime.datetime.now())}
+    save_state(state)
+
+# -------------------------------------------------------
+
 def load_soar_config():
     with open(CONFIG_PATH, 'r') as f:
         return yaml.safe_load(f)
@@ -26,6 +68,12 @@ def load_soar_config():
 cfg = load_soar_config()
 app = FastAPI(title=f"{cfg['system']['org_name']} SOAR Bridge")
 
+# STARTUP TRIGGER: Ensure file exists as soon as the server turns on
+@app.on_event("startup")
+async def startup_event():
+    load_state()
+
+# JIRA CONFIG
 JIRA_ARCHIVE_ID = os.getenv("JIRA_ARCHIVE_TRANSITION_ID", cfg['jira_settings']['transitions']['archive_id'])
 ANALYST_ACCOUNT_ID = os.getenv("JIRA_ANALYST_ID")
 AI_ENDPOINT = cfg['network']['ai_analyst_endpoint']
@@ -37,32 +85,6 @@ class Incident(BaseModel):
     ip_address: str
     command: str
     severity: str = "Low"
-
-# --- STATE/MEMORY ---
-def load_state():
-    if os.path.exists(STATE_FILE_PATH):
-        try:
-            with open(STATE_FILE_PATH, 'r') as f:
-                return json.load(f)
-        except: return {}
-    return {}
-
-def save_state(state):
-    with open(STATE_FILE_PATH, 'w') as f:
-        json.dump(state, f)
-
-def check_history(ip):
-    """Returns: is_known (bool), hit_count (int), last_ticket (str)"""
-    state = load_state()
-    if ip in state:
-        return True, state[ip]['count'], state[ip]['ticket']
-    return False, 0, None
-
-def update_history(ip, jira_key):
-    state = load_state()
-    count = state.get(ip, {}).get('count', 0)
-    state[ip] = {'count': count + 1, 'ticket': jira_key, 'last_seen': str(datetime.datetime.now())}
-    save_state(state)
 
 # --- HELPERS ---
 def enrich_incident_data(ip: str):
@@ -79,10 +101,8 @@ def create_jira_ticket(title, description, priority="Medium", assignee_id=None):
     user = os.getenv("JIRA_USER_EMAIL")
     token = os.getenv("JIRA_API_TOKEN")
     project = cfg['jira_settings']['project_key']
-    
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/json"}
-    
     payload = {
         "fields": {
             "project": {"key": project}, "summary": title, "description": description,
@@ -90,9 +110,7 @@ def create_jira_ticket(title, description, priority="Medium", assignee_id=None):
             "priority": {"name": priority}
         }
     }
-    if assignee_id:
-        payload["fields"]["assignee"] = {"accountId": assignee_id}
-    
+    if assignee_id: payload["fields"]["assignee"] = {"accountId": assignee_id}
     try:
         r = requests.post(url, json=payload, headers=headers)
         return r.json().get("key") if r.status_code == 201 else None
@@ -128,7 +146,6 @@ def trigger_active_containment(target_ip):
         print(f"[⚔️] ACTIVE DEFENSE: Sent Block to {target_ip}")
     except: pass
 
-# --- MAIN LOGIC ---
 @app.post("/alert")
 async def receive_alert(incident: Incident):
     uae_now = datetime.datetime.now(pytz.timezone(cfg['system']['operating_timezone'])).strftime('%Y-%m-%d %H:%M:%S GST')
@@ -137,7 +154,6 @@ async def receive_alert(incident: Incident):
     is_known, hit_count, existing_ticket = check_history(incident.ip_address)
     enrichment = enrich_incident_data(incident.ip_address)
 
-    # Call AI
     try:
         print(f"[*] Consulting AI Analyst...")
         ai_req = requests.post(AI_ENDPOINT, json={
@@ -148,26 +164,19 @@ async def receive_alert(incident: Incident):
         verdict = ai_req.json().get("verdict_report", "Unknown")
         decision_header = "\n".join(verdict.splitlines()[:2]).upper()
         
-        # Categorize
         is_malicious = "MALICIOUS" in decision_header
-        is_suspicious = "SUSPICIOUS" in decision_header # <-- Added this Variable
+        is_suspicious = "SUSPICIOUS" in decision_header
         is_fp = "AUTHORIZED" in decision_header
         
-        # --- FIXED DEDUPLICATION LOGIC ---
-        # If Malicious OR Suspicious, AND we know them -> Update Comment
         if (is_malicious or is_suspicious) and is_known and existing_ticket:
             print(f"[!] REPEAT OFFENDER ({hit_count+1}). Updating {existing_ticket}...")
             msg = f"⚠️ **RECURRING EVENT**: {incident.hostname} targeted again at {uae_now}.\nCmd: `{incident.command}`"
             add_jira_comment(existing_ticket, msg)
             update_history(incident.ip_address, existing_ticket)
-            
             if is_malicious and enrichment['criticality'] == 'CRITICAL':
-                trigger_active_containment(incident.ip_address) # Block again if critical
-            
+                trigger_active_containment(incident.ip_address)
             return {"status": "Deduplicated", "ticket": existing_ticket}
-        # ---------------------------------
 
-        # If New Ticket Logic:
         priority = "Medium"
         label = "SUSPICIOUS"
         assignee = None
@@ -180,10 +189,9 @@ async def receive_alert(incident: Incident):
         elif is_fp:
             priority = "Lowest"
             label = "✅ AUTO-RESOLVED"
-        else: # Suspicious
+        else:
             assignee = ANALYST_ACCOUNT_ID
 
-        # Create Ticket
         jira_key = create_jira_ticket(
             title=f"[{label}] {incident.hostname}",
             description=f"AI REPORT:\n{verdict}\n\n**CTX:** {enrichment}",
@@ -197,7 +205,6 @@ async def receive_alert(incident: Incident):
         elif jira_key:
             print(f"[#] NEW INCIDENT {jira_key}")
             send_slack_alert(verdict, incident.hostname, priority, jira_key)
-            # IMPORTANT: Save to memory now so next time it is 'Known'
             update_history(incident.ip_address, jira_key)
 
         return {"status": "Complete", "ticket": jira_key}
