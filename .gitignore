@@ -9,7 +9,8 @@ services/ai-analyst/__pycache__/
 services/soar-bridge/src/__pycache__/
 services/ai-analyst/src/__pycache__/
 services/telemetry-gen/src/__pycache__/
-C:\SOC-INTEGRATED-PLATFORM\services\ai-analyst\tools\__pycache__
+services/ai-analyst/tools/__pycache__
+
 
 # OS files
 .DS_Store
