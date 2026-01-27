@@ -85,22 +85,22 @@ docker-compose up --build -d
 ```mermaid
 graph TD
     subgraph Services
-        B[SOAR Bridge / Orchestrator<br/>FastAPI]
-        C[AI Analyst Agent<br/>Llama-3 / Groq]
+        B[SOAR Bridge / Orchestrator | FastAPI]
+        C[AI Analyst Agent | Llama-3 / Groq]
     end
 
     subgraph Intelligence & State
-        F[Policy RAG Store<br/>(Policy/MITRE/Assets)]
-        G[State Manager<br/>(Deduplication History)]
-        H[Privacy Engine<br/>(PII Redaction)]
+        F[Policy RAG Store | (Policy/MITRE/Assets)]
+        G[State Manager | (Deduplication History)]
+        H[Privacy Engine | (PII Redaction)]
     end
 
-    A[EDR Telemetry<br/>(Simulation)] --> H
+    A[EDR Telemetry | (Simulation)] --> H
     H --> B
     B -->|Context/Log| C
     C -->|Verdict| B
     B -->|Jira v3/Slack API| I[Jira / Slack]
-    B -->|Block Host| D[Mock EDR Agent<br/>(Containment)]
+    B -->|Block Host| D[Mock EDR Agent | (Containment)]
 
     B -->|Query| F
     B -->|Update| G
