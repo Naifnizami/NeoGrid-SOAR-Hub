@@ -84,26 +84,35 @@ docker-compose up --build -d
 
 ```mermaid
 graph TD
-    subgraph Services
-        B[SOAR Bridge / Orchestrator | FastAPI]
-        C[AI Analyst Agent | Llama-3 / Groq]
-    end
 
-    subgraph Intelligence & State
-        F[Policy RAG Store | (Policy/MITRE/Assets)]
-        G[State Manager | (Deduplication History)]
-        H[Privacy Engine | (PII Redaction)]
-    end
+%% ================= CORE FLOW =================
+A[Telemetry Source<br>EDR XDR Alerts] --> H
+H[Privacy Engine<br>PII Redaction] --> B
 
-    A[EDR Telemetry | (Simulation)] --> H
-    H --> B
-    B -->|Context/Log| C
-    C -->|Verdict| B
-    B -->|Jira v3/Slack API| I[Jira / Slack]
-    B -->|Block Host| D[Mock EDR Agent | (Containment)]
+B[SOAR Bridge<br>Orchestration Layer] -->|Context Enrichment| C
+C[AI Security Analyst<br>Llama3 Reasoning] -->|Verdict| B
 
-    B -->|Query| F
-    B -->|Update| G
+B -->|Case Sync| J[Jira Case Management]
+B -->|Notify| S[Slack SOC Channel]
+B -->|Containment Action| D[EDR Containment Agent]
+
+B -->|Policy Lookup| F[Policy and MITRE Knowledge]
+B -->|State Update| G[Incident Memory Store]
+
+%% ================= STYLES =================
+classDef core fill:#1f2937,color:#ffffff,stroke:#111827,stroke-width:2px;
+classDef ai fill:#4c1d95,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+classDef defense fill:#7f1d1d,color:#ffffff,stroke:#450a0a,stroke-width:2px;
+classDef intel fill:#064e3b,color:#ffffff,stroke:#022c22,stroke-width:2px;
+classDef output fill:#1e3a8a,color:#ffffff,stroke:#172554,stroke-width:2px;
+
+class B core
+class C ai
+class D defense
+class F,G intel
+class J,S output
+class H core
+class A core
 ```
 
 ---
