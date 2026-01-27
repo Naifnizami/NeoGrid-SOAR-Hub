@@ -1,0 +1,32 @@
+{
+    "T1059.001": {
+        "technique": "PowerShell",
+        "tactic": "Execution",
+        "description": "Adversaries may abuse PowerShell to commands and scripts. It can be used for execution and to hide activity.",
+        "severity": "High"
+    },
+    "T1562.001": {
+        "technique": "Disable or Modify Tools",
+        "tactic": "Defense Evasion",
+        "description": "Disabling endpoint protection or clearing logs to hide presence.",
+        "severity": "Critical"
+    },
+    "T1003.001": {
+        "technique": "LSASS Memory",
+        "tactic": "Credential Access",
+        "description": "Dumping memory from Local Security Authority Subsystem Service to steal credentials (e.g. Mimikatz).",
+        "severity": "Highest"
+    },
+    "T1078": {
+        "technique": "Valid Accounts",
+        "tactic": "Defense Evasion / Persistence",
+        "description": "Misuse of legitimate credentials to move laterally or persist in the network.",
+        "severity": "Medium"
+    },
+    "T1567": {
+        "technique": "Exfiltration Over Web Service",
+        "tactic": "Exfiltration",
+        "description": "Using legitimate web services (Mega, Dropbox) to steal sensitive corporate data.",
+        "severity": "High"
+    }
+}

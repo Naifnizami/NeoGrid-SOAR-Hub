@@ -1,84 +1,46 @@
-import os
-import requests
-import base64
-import datetime
-import json
-import pytz
-import pandas as pd
-import yaml
+import sys, os
+# 1. ENSURE PATHS ARE SET FIRST (Required for Shared Volume access)
+sys.path.append('/app/src')
+sys.path.append('/app/shared')
+
+print("[*] SYSTEM: Bootstrapping SOAR Bridge Orchestrator...")
+
+import requests, base64, datetime, pytz, yaml, re
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# 1. PATH SETUP
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_DIR)))
-load_dotenv(dotenv_path=os.path.join(ROOT_DIR, ".env")) 
+# 2. IMPORT ENTERPRISE SERVICES
+from asset_service import AssetService
+from state_manager import StateManager
+from privacy_engine import PrivacyEngine
 
+print("[*] SYSTEM: Asset, State, and Privacy modules loaded.")
+
+# 3. SETUP & ENVIRONMENT
+load_dotenv()
 CONFIG_PATH = "/app/config/soar_config.yaml"
 ASSET_DB_PATH = "/app/shared/asset_inventory.csv"
 STATE_FILE_PATH = "/app/shared/incident_state.json"
-
-# --- [ IMPROVED STATEFUL MEMORY - SINGLE DEFINITION ] ---
-
-def load_state():
-    """Reads the 'Memory' file, creating it if it doesn't exist."""
-    if not os.path.exists(STATE_FILE_PATH):
-        print(f"[*] INITIALIZATION: State file missing. Creating fresh memory at {STATE_FILE_PATH}")
-        try:
-            os.makedirs(os.path.dirname(STATE_FILE_PATH), exist_ok=True)
-            with open(STATE_FILE_PATH, 'w') as f:
-                json.dump({}, f)
-        except Exception as e:
-            print(f"[🚨] ERROR: Could not create state file: {e}")
-            return {}
-
-    try:
-        with open(STATE_FILE_PATH, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_state(state):
-    """Writes updated memory to disk."""
-    try:
-        with open(STATE_FILE_PATH, 'w') as f:
-            json.dump(state, f, indent=4)
-    except Exception as e:
-        print(f"[!] Error saving state: {e}")
-
-def check_history(ip):
-    state = load_state()
-    if ip in state:
-        return True, state[ip]['count'], state[ip]['ticket']
-    return False, 0, None
-
-def update_history(ip, jira_key):
-    state = load_state()
-    count = state.get(ip, {}).get('count', 0)
-    state[ip] = {'count': count + 1, 'ticket': jira_key, 'last_seen': str(datetime.datetime.now())}
-    save_state(state)
-
-# -------------------------------------------------------
 
 def load_soar_config():
     with open(CONFIG_PATH, 'r') as f:
         return yaml.safe_load(f)
 
 cfg = load_soar_config()
-app = FastAPI(title=f"{cfg['system']['org_name']} SOAR Bridge")
+app = FastAPI(title=f"{cfg['system']['org_name']} Orchestrator")
 
-# STARTUP TRIGGER: Ensure file exists as soon as the server turns on
-@app.on_event("startup")
-async def startup_event():
-    load_state()
+# Initialize Global Instances
+asset_inventory = AssetService(ASSET_DB_PATH)
+memory = StateManager(STATE_FILE_PATH)
+scrubber = PrivacyEngine()
 
-# JIRA CONFIG
-JIRA_ARCHIVE_ID = os.getenv("JIRA_ARCHIVE_TRANSITION_ID", cfg['jira_settings']['transitions']['archive_id'])
-ANALYST_ACCOUNT_ID = os.getenv("JIRA_ANALYST_ID")
+# API Configuration Constants
 AI_ENDPOINT = cfg['network']['ai_analyst_endpoint']
 AGENT_ENDPOINT = cfg['network']['agent_endpoint']
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
+ANALYST_ID = os.getenv("JIRA_ANALYST_ID")
+JIRA_ARCHIVE_ID = cfg['jira_settings']['transitions']['archive_id']
 
 class Incident(BaseModel):
     hostname: str
@@ -86,134 +48,216 @@ class Incident(BaseModel):
     command: str
     severity: str = "Low"
 
-# --- HELPERS ---
-def enrich_incident_data(ip: str):
-    try:
-        df = pd.read_csv(ASSET_DB_PATH)
-        asset = df[df['ip_address'] == ip]
-        if not asset.empty:
-            return {"criticality": asset.iloc[0]['criticality'], "department": asset.iloc[0]['department']}
-        return {"criticality": "Standard", "department": "Unknown"}
-    except: return {"criticality": "Standard", "department": "Unknown"}
+# --- [ ULTIMATE JIRA DOCUMENT FORMATTER (ADF) ] ---
+def format_description_to_jira_doc(report_text):
+    """
+    Converts a Markdown-style string into Jira's structured JSON Document format (ADF).
+    This uses a basic paragraph structure to maximize acceptance by the v3 API.
+    """
+    content_blocks = []
+    # Split by newlines and create a paragraph block for each non-empty line
+    for line in report_text.split('\n'):
+        if line.strip():
+            content_blocks.append({"type": "paragraph", "content": [{"type": "text", "text": line}]})
+
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": content_blocks
+    }
+
+# --- [ ENTERPRISE ACTION HANDLERS ] ---
 
 def create_jira_ticket(title, description, priority="Medium", assignee_id=None):
-    url = f"{os.getenv('JIRA_URL')}/rest/api/2/issue"
+    """Creates a full investigative case in Jira (using v3 API with rich ADF description)."""
+    url = f"{os.getenv('JIRA_URL')}/rest/api/3/issue" # <-- v3 Endpoint
     user = os.getenv("JIRA_USER_EMAIL")
     token = os.getenv("JIRA_API_TOKEN")
-    project = cfg['jira_settings']['project_key']
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/json"}
+    
+    # Use the Jira Document Format for the description
+    description_doc = format_description_to_jira_doc(description)
+    
     payload = {
         "fields": {
-            "project": {"key": project}, "summary": title, "description": description,
+            "project": {"key": cfg['jira_settings']['project_key']},
+            "summary": title, 
+            "description": description_doc, 
             "issuetype": {"name": cfg['jira_settings']['defaults']['issue_type']},
             "priority": {"name": priority}
         }
     }
-    if assignee_id: payload["fields"]["assignee"] = {"accountId": assignee_id}
+    if assignee_id: 
+        payload["fields"]["assignee"] = {"accountId": assignee_id}
+    
     try:
-        r = requests.post(url, json=payload, headers=headers)
-        return r.json().get("key") if r.status_code == 201 else None
-    except: return None
+        r = requests.post(url, json=payload, headers=headers, timeout=10)
+        
+        if r.status_code == 201:
+            return r.json().get("key")
+        else:
+            print(f"[🚨] JIRA API FAILED: Status {r.status_code}")
+            print(f"[🚨] JIRA REASON: {r.text}")
+            return None
+            
+    except Exception as e: 
+        print(f"[🚨] JIRA CONNECTION ERROR: {e}")
+        return None
 
 def add_jira_comment(issue_key, message):
+    """Adds evidence/comments to an existing investigation for auditing."""
     url = f"{os.getenv('JIRA_URL')}/rest/api/2/issue/{issue_key}/comment"
-    user = os.getenv("JIRA_USER_EMAIL")
-    token = os.getenv("JIRA_API_TOKEN")
-    auth = base64.b64encode(f"{user}:{token}".encode()).decode()
-    requests.post(url, json={"body": message}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"})
+    auth = base64.b64encode(f"{os.getenv('JIRA_USER_EMAIL')}:{os.getenv('JIRA_API_TOKEN')}".encode()).decode()
+    try:
+        requests.post(url, json={"body": message}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"}, timeout=5)
+    except: 
+        pass
 
 def transition_to_archive(issue_key):
+    """Moves False Positive tickets to the ARCHIVED column."""
     url = f"{os.getenv('JIRA_URL')}/rest/api/2/issue/{issue_key}/transitions"
-    user = os.getenv("JIRA_USER_EMAIL")
-    token = os.getenv("JIRA_API_TOKEN")
-    auth = base64.b64encode(f"{user}:{token}".encode()).decode()
-    requests.post(url, json={"transition": {"id": JIRA_ARCHIVE_ID}}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"})
+    auth = base64.b64encode(f"{os.getenv('JIRA_USER_EMAIL')}:{os.getenv('JIRA_API_TOKEN')}".encode()).decode()
+    try:
+        requests.post(url, json={"transition": {"id": JIRA_ARCHIVE_ID}}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"}, timeout=5)
+    except: 
+        pass
 
 def send_slack_alert(verdict, hostname, priority, ticket_key):
+    """
+    Triggers high-priority ChatOps alerts for real-time response.
+    The preview is intelligently extracted from the TECHNICAL ANALYSIS section (500 char limit).
+    """
     if not SLACK_WEBHOOK: return
-    color = "#FF0000" if "High" in priority else "#FFCC00"
-    emoji = "🚨" if "High" in priority else "⚠️"
+
+    # --- INTELLIGENT PREVIEW EXTRACTION ---
+    preview = "Full report available in Jira." # Default fallback
+    try:
+        # Find the start of the Technical Analysis section
+        start_tag = '## TECHNICAL ANALYSIS'
+        # Find the start of the next major section (or end of string)
+        end_tag = '## CONTEXT AUDIT'
+        
+        start_index = verdict.index(start_tag) + len(start_tag)
+        
+        try:
+            end_index = verdict.index(end_tag, start_index)
+        except ValueError:
+            # If CONTEXT AUDIT is not found, use the end of the string
+            end_index = len(verdict)
+            
+        # Extract the relevant text, strip whitespace, and safely limit to 500 chars
+        preview_text = verdict[start_index:end_index].strip()
+        
+        # Replace newlines with spaces for a cleaner Slack message
+        preview = preview_text.replace('\n', ' ')[:500] 
+        
+    except ValueError:
+        # Fallback if the expected headers are not found
+        preview = verdict.replace('\n', ' ')[:500] 
+    
+    # --- SLACK API CALL ---
     try:
         requests.post(SLACK_WEBHOOK, json={
-            "text": f"{emoji} SOC ALERT: {priority} Priority\n*Asset:* {hostname}\n*Ticket:* {ticket_key}\n*Verdict:* {verdict.splitlines()[0]}"
+            "text": (
+                f"🚨 *SOC ESCALATION*: {priority}\n"
+                f"*Host:* {hostname} | *Ticket:* <{os.getenv('JIRA_URL')}/browse/{ticket_key}|{ticket_key}>\n"
+                f"*Technical Summary:* {preview}"
+            )
         }, timeout=2)
-    except: pass
+    except Exception as e: 
+        print(f"[!] Slack Alert Failed: {e}")
 
-def trigger_active_containment(target_ip):
-    try:
-        requests.post(AGENT_ENDPOINT, json={"ip": target_ip}, timeout=5)
-        print(f"[⚔️] ACTIVE DEFENSE: Sent Block to {target_ip}")
-    except: pass
+# --- [ CORE SOAR LOGIC ] ---
 
 @app.post("/alert")
-async def receive_alert(incident: Incident):
-    uae_now = datetime.datetime.now(pytz.timezone(cfg['system']['operating_timezone'])).strftime('%Y-%m-%d %H:%M:%S GST')
-    print(f"\n--- INGESTING FROM {incident.ip_address} ---")
+async def process_pipeline(incident: Incident):
+    print(f"\n[*] INGESTING ALERT: {incident.ip_address} | {incident.hostname}")
 
-    is_known, hit_count, existing_ticket = check_history(incident.ip_address)
-    enrichment = enrich_incident_data(incident.ip_address)
+    # STEP 1: STATEFUL DEDUPLICATION (Memory check)
+    existing_ticket, hit_count = memory.check_duplicate(incident.ip_address)
+    if existing_ticket:
+        print(f"[!] DEDUPLICATING: Repeat activity on ticket {existing_ticket}")
+        memory.update_incident(incident.ip_address, existing_ticket)
+        
+        recurring_msg = (
+            f"⚠️ **RECURRING ACTIVITY LOGGED**\n"
+            f"Observed Host: `{incident.hostname}`\n"
+            f"Observed Command: `{incident.command}`\n"
+            f"Incident Hit Count: {hit_count + 1}"
+        )
+        add_jira_comment(existing_ticket, recurring_msg)
+        return {"status": "Deduplicated", "ticket": existing_ticket}
 
+    # STEP 2: CONTEXT ENRICHMENT (Business Policy & Hours)
+    context = asset_inventory.get_context(incident.ip_address)
+    
+    # STEP 3: PRIVACY SHIELD (Data scrubbing)
+    safe_command = scrubber.redact_log(incident.command)
+
+    # STEP 4: COGNITIVE TRIAGE (Llama-3 analysis)
     try:
-        print(f"[*] Consulting AI Analyst...")
-        ai_req = requests.post(AI_ENDPOINT, json={
-            "hostname": incident.hostname, "ip_address": incident.ip_address,
-            "command": incident.command, "criticality": enrichment['criticality']
-        }, timeout=45)
+        ai_payload = {
+            "hostname": incident.hostname,
+            "ip_address": incident.ip_address,
+            "command": safe_command,
+            "criticality": context['criticality'],
+            "is_business_hours": context['is_business_hours']
+        }
         
-        verdict = ai_req.json().get("verdict_report", "Unknown")
-        decision_header = "\n".join(verdict.splitlines()[:2]).upper()
-        
-        is_malicious = "MALICIOUS" in decision_header
-        is_suspicious = "SUSPICIOUS" in decision_header
-        is_fp = "AUTHORIZED" in decision_header
-        
-        if (is_malicious or is_suspicious) and is_known and existing_ticket:
-            print(f"[!] REPEAT OFFENDER ({hit_count+1}). Updating {existing_ticket}...")
-            msg = f"⚠️ **RECURRING EVENT**: {incident.hostname} targeted again at {uae_now}.\nCmd: `{incident.command}`"
-            add_jira_comment(existing_ticket, msg)
-            update_history(incident.ip_address, existing_ticket)
-            if is_malicious and enrichment['criticality'] == 'CRITICAL':
-                trigger_active_containment(incident.ip_address)
-            return {"status": "Deduplicated", "ticket": existing_ticket}
+        print("[*] AI ANALYST: Submitting behavioral report for reasoning...")
+        ai_req = requests.post(AI_ENDPOINT, json=ai_payload, timeout=50)
+        verdict_report = ai_req.json().get("verdict_report", "Forensic Investigation Error. Manual Review Required.")
 
-        priority = "Medium"
-        label = "SUSPICIOUS"
-        assignee = None
+        # Behavioral Classification
+        is_malicious = "[DECISION] | MALICIOUS" in verdict_report.upper()
+        is_fp = "[DECISION] | AUTHORIZED" in verdict_report.upper()
 
+        # STEP 5: REMEDIATION & NOTIFICATION
+        priority = "Highest" if (is_malicious and context['criticality'] == 'CRITICAL') else "Medium"
+        if is_fp: priority = "Lowest"
+        
+        label = "TP ALERT" if is_malicious else ("AUTO-RESOLVED" if is_fp else "INVESTIGATE")
+        assignee = ANALYST_ID if (is_malicious or not is_fp) else None
+
+        # Autonomous Active Defense: Block host if malicious
         if is_malicious:
-            priority = "Highest" if enrichment['criticality'] == "CRITICAL" else "High"
-            label = "🚨 TP ALERT"
-            assignee = ANALYST_ACCOUNT_ID
-            trigger_active_containment(incident.ip_address)
-        elif is_fp:
-            priority = "Lowest"
-            label = "✅ AUTO-RESOLVED"
-        else:
-            assignee = ANALYST_ACCOUNT_ID
+            print(f"[🛡️] ACTION: Malicious activity confirmed. Isolating {incident.ip_address}")
+            requests.post(AGENT_ENDPOINT, json={"ip": incident.ip_address}, timeout=5)
+
+        # Jira Creation - Final Description Construction
+        description_final = (
+            f"REPORT GENERATED: {datetime.datetime.now()}\n\n"
+            f"{verdict_report}\n\n"
+            f"--- Context ---\n"
+            f"ASSET OWNER: {context['owner']}\n"
+            f"BUSINESS HOURS: {context['is_business_hours']}"
+        )
 
         jira_key = create_jira_ticket(
             title=f"[{label}] {incident.hostname}",
-            description=f"AI REPORT:\n{verdict}\n\n**CTX:** {enrichment}",
+            description=description_final,
             priority=priority,
             assignee_id=assignee
         )
 
-        if is_fp and jira_key:
-            print(f"[✔] ARCHIVING {jira_key}")
-            transition_to_archive(jira_key)
-        elif jira_key:
-            print(f"[#] NEW INCIDENT {jira_key}")
-            send_slack_alert(verdict, incident.hostname, priority, jira_key)
-            update_history(incident.ip_address, jira_key)
-
-        return {"status": "Complete", "ticket": jira_key}
+        if jira_key:
+            memory.update_incident(incident.ip_address, jira_key)
+            
+            # --- FINAL LIFECYCLE MANAGEMENT ---
+            if is_fp:
+                transition_to_archive(jira_key)
+            else:
+                send_slack_alert(verdict_report, incident.hostname, priority, jira_key)
+                
+            print(f"[✅] FLOW COMPLETE: Ticket {jira_key} synchronized.")
+            return {"status": "Complete", "ticket": jira_key}
 
     except Exception as e:
-        print(f"[!] Error: {e}")
+        print(f"[!] Pipeline Error: {e}")
         return {"status": "Error"}
 
 if __name__ == "__main__":
     import uvicorn
-    print("[*] SOAR ENGINE ONLINE")
+    print("[*] SYSTEM: Starting FastAPI Orchestrator on port 8000...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

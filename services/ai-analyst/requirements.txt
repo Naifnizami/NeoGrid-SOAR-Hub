@@ -4,3 +4,5 @@ agno
 groq
 python-dotenv
 requests
+# These may be needed if you expand later:
+# presidio-analyzer
