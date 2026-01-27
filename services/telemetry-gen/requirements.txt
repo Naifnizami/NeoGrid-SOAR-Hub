@@ -1,4 +1,9 @@
+# Web Framework for the EDR Listener (Containment API)
+fastapi==0.109.2
+uvicorn==0.27.1
+
+# HTTP client for simulation sending
 requests==2.31.0
+
+# Environment Management
 python-dotenv==1.0.0
-fastapi
-uvicorn

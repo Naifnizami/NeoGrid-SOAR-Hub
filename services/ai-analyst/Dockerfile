@@ -1,27 +1,30 @@
-# Use an industry-standard lightweight Python image
+# Use a lightweight but stable Python base
 FROM python:3.11-slim
 
-# Create the work directory inside the container
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy the requirements file from the current folder
-# (Make sure you have a requirements.txt in the ai-analyst folder)
+# 1. Dependency Management
+# We copy only requirements first to leverage Docker's cache layer
 COPY requirements.txt .
-
-# Install the necessary libraries (fastapi, agno, requests, etc.)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the internal service structure
-# We copy them specifically so the container mirrors our local organization
+# 2. Source Code & Tools
+# Explicitly copying the structured folders
 COPY ./src /app/src
 COPY ./tools /app/tools
 
-# 🚨 CRITICAL: The PYTHONPATH variable allows the script in /app/src/ 
-# to import from the folder /app/tools/ as a peer.
-ENV PYTHONPATH=/app
+# 🚨 ENTERPRISE ENV SETTINGS:
+# PYTHONPATH ensures that 'import tools' works. 
+# We add /app/shared so the Agent can access shared intelligence (mitre_db.json, privacy_engine.py).
+ENV PYTHONPATH="/app:/app/shared"
 
-# Expose the internal Port we've been using for the Analyst
+# Python Unbuffered allows logs to flow immediately to docker-compose output
+ENV PYTHONUNBUFFERED=1
+
+# Expose internal Service Port
 EXPOSE 8001
 
-# Command to launch the Analyst service
-CMD ["python", "src/main.py"]
+# Command to launch the service
+# We use -u for unbuffered logs to help with real-time SOC monitoring
+CMD ["python", "-u", "src/main.py"]

@@ -2,7 +2,7 @@
 .env
 
 # Local Memory/Logs
-shared/incident_state.json
+#shared/incident_state.json
 **/__pycache__
 
 

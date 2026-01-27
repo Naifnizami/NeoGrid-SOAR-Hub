@@ -6,65 +6,84 @@ from agno.agent import Agent
 from agno.models.groq import Groq
 
 # 1. PATH FIX FOR TOOLS
-# Docker WORKDIR is /app. 'src' and 'tools' are siblings under /app.
+# Ensure tools/ folder is accessible regardless of how the container starts
 sys.path.append('/app') 
-
 from tools.intel_tools import check_ip_reputation, check_file_hash, get_mitre_context
 
-# 2. LOAD SECRETS
-# In Docker, we use 'env_file' so vars are usually already in the environment,
-# but we'll call load_dotenv for local fallback.
 load_dotenv()
 
-# 🚨 DOCKER PATH: Corporate policy is mounted to /app/shared/
 KNOWLEDGE_FILE = "/app/shared/security_policy_maintenance.md"
 
 def get_security_policy():
-    """Reads local SOC policies for RAG context inside the container."""
+    """Reads the corporate RAG context to identify approved behaviors."""
     try:
+        if not os.path.exists(KNOWLEDGE_FILE):
+            return "Policy error: Maintenance guide not found."
         with open(KNOWLEDGE_FILE, 'r') as f:
             return f.read()
     except Exception as e:
-        # We print a brutal warning if the volume mount failed
-        print(f"[🚨 DOCKER ERROR] Volume not found at {KNOWLEDGE_FILE}: {e}")
+        print(f"[🚨] Policy Load Error: {e}")
         return "No specific maintenance policy found."
 
 POLICY_TEXT = get_security_policy()
 
-app = FastAPI(title="NGF AI Analyst Service")
+app = FastAPI(title="NeoGrid AI Analyst Service")
 
-# 3. THE ANALYST AGENT
+# 2. THE UPGRADED AGENT: BEHAVIORAL ANALYST TUNING
+# Focused on identifying account misuse and business-context anomalies
 analyst_agent = Agent(
     model=Groq(id="llama-3.3-70b-versatile"),
     tools=[check_ip_reputation, check_file_hash, get_mitre_context],
     instructions=[
-        "You are a Senior Tier-3 SOC Analyst at NeoGrid Financial.",
-        "--- CORPORATE SECURITY POLICY ---",
+        "You are an Elite Level-3 SOC Incident Responder specializing in Behavioral Analysis.",
+        "Your mission is to differentiate between approved IT admin work and advanced attacker movements.",
+        
+        "--- CORPORATE POLICY CONTEXT ---",
         POLICY_TEXT,
         "--- END POLICY ---",
-        "",
-        "🚨 DECISION PROTOCOL (MANDATORY) 🚨:",
-        "Every response MUST start with a machine-readable line. ",
-        "FORMAT Line 1 exactly as follows:",
-        "- If Case 2 (Authorized Gateway Backup) -> [DECISION] | AUTHORIZED",
-        "- If violates Section 2 Prohibited List -> [DECISION] | MALICIOUS",
-        "- For everything else (Default/Noise)   -> [DECISION] | SUSPICIOUS",
-        "",
-        "After Line 1, provide a flat technical report using ## Headers.",
-        "Check IP reputation and map to MITRE ATT&CK codes."
-    ]
+        
+        "🚨 ANALYSIS PROTOCOL 🚨",
+        "1. BEHAVIORAL TRIAGE: Cross-reference 'Command' with 'is_business_hours'. Unauthorized commands executed outside hours are high-risk.",
+        "2. ACCOUNT MISUSE: Look for misuse of valid accounts. Even if the account is an Admin, verify if the pattern matches a Policy Whitelist.",
+        "3. INTEL GATHERING: Map the command behavior to a MITRE ATT&CK T-code using tools.",
+        "4. **IP PRIORITY**: If the Target System/IP is PRIVATE (10.x, 192.168.x, 172.16.x), prioritize the CORPORATE POLICY above all else and DO NOT call external IP tools.",
+        
+        "⚠️ MANDATORY RESPONSE RULES ⚠️",
+            "LINE 1 MUST be exactly one of these headers:",
+            "[DECISION] | AUTHORIZED",
+            "[DECISION] | MALICIOUS",
+            "[DECISION] | SUSPICIOUS",
+            "If a tool fails to provide a result, mention 'Threat Intelligence unavailable' and make your decision based on Behavioral Policy alone."
+        
+        "REPORT STRUCTURE (Markdown):",
+        "## TECHNICAL ANALYSIS (What the command actually does + Tool findings)",
+        "## CONTEXT AUDIT (Role vs Business Hours vs Policy)",
+        "## MITRE ATT&CK (T-Code & description)",
+        "## RECOMMENDED REMEDIATION (e.g. Host Isolation, Password Reset, etc.)"
+    ],
+    markdown=True
 )
 
 @app.post("/analyze")
 async def analyze_incident(data: dict):
-    print(f"[*] DOCKER-LOG: Analyzing alert from {data['hostname']}...")
+    # Log incoming telemetry for observability
+    host = data.get('hostname')
+    ip = data.get('ip_address')
+    print(f"[*] AGENT LOG: Performing Behavioral Triage for {host} ({ip})")
     
-    prompt = f"""
-    ANALYSIS REQUEST:
-    Host: {data.get('hostname')} | IP: {data.get('ip_address')}
-    Risk: {data.get('criticality')} | Command: `{data.get('command')}`
+    # Check for a private IP range to inform the AI
+    is_private_ip = ip.startswith('10.') or ip.startswith('192.168.') or ip.startswith('172.16.')
 
-    Provide a forensic report. Start your response with Line 1: [DECISION] | verdict.
+    # 3. CONTEXT-RICH PROMPT
+    # We remove the external tool instruction entirely, as the Agent's instructions now cover conditional tool use.
+    prompt = f"""
+    Investigate the following signal from the SOAR Bridge:
+    - Hostname: {host}
+    - Criticality Level: {data.get('criticality', 'Standard')}
+    - Target System/IP: {ip}
+    - Is During Business Hours: {data.get('is_business_hours', 'Unknown')}
+    - Redacted Command: `{data.get('command')}`
+    CRITICAL SUMMARY: The IP is {'PRIVATE' if is_private_ip else 'PUBLIC'}. Follow the IP PRIORITY rules in the analysis protocol.
     """
     
     response = analyst_agent.run(prompt)
@@ -72,6 +91,5 @@ async def analyze_incident(data: dict):
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"[*] ANALYST BRAIN READY ON PORT 8001")
-    # 🚨 CRITICAL CHANGE FOR DOCKER: host MUST be 0.0.0.0
+    # Listening on internal Docker Port
     uvicorn.run(app, host="0.0.0.0", port=8001)

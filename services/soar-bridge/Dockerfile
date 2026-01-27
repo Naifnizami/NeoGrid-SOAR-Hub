@@ -1,24 +1,20 @@
-# Standard enterprise lightweight base
 FROM python:3.11-slim
 
-# The 'Home' of our service inside the container
 WORKDIR /app
 
-# Step 1: Install dependencies first (better build speed)
+# Dependency management
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Step 2: Copy the source code
+# Service source
 COPY ./src /app/src
-
-# Step 3: Copy the config folder (CRITICAL: Logic relies on soar_config.yaml)
 COPY ./config /app/config
 
-# Note: The /shared folder will NOT be copied. 
-# It will be "Mounted" live via the docker-compose file.
+# 🚨 CRITICAL: Ensure the bridge sees /app/shared for Privacy and Intel modules
+ENV PYTHONPATH="/app/src:/app/shared"
+ENV PYTHONUNBUFFERED=1
 
-# Listen on Port 8000
 EXPOSE 8000
 
-# Execute the dispatcher
-CMD ["python", "src/main.py"]
+# Execute the dispatcher with unbuffered logs
+CMD ["python", "-u", "src/main.py"]

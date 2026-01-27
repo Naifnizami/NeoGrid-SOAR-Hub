@@ -3,6 +3,8 @@ import json
 import requests
 import uuid
 import sys
+# Import the specific exception for JSON decoding errors
+from requests.exceptions import JSONDecodeError
 
 # Standard internal Docker networking
 BRIDGE_URL = os.getenv("BRIDGE_URL", "http://soar-bridge:8000/alert")
@@ -34,10 +36,23 @@ def fire_simulation(case_id):
         r = requests.post(BRIDGE_URL, json=payload, timeout=60)
         
         if r.status_code == 200:
-            result = r.json()
-            print(f"[✅] SOC PIPELINE SUCCESS")
-            print(f"[+] Final Jira Status: {result.get('status')}")
-            print(f"[+] Incident Tracking ID: {result.get('ticket')}")
+            
+            # --- THE FINAL FIX: Safely parse the response body ---
+            try:
+                result = r.json()
+            except JSONDecodeError:
+                # If the body is empty or malformed (the previous crash reason)
+                result = None
+
+            if result is not None:
+                # Success - everything worked
+                print(f"[✅] SOC PIPELINE SUCCESS")
+                print(f"[+] Final Jira Status: {result.get('status', 'N/A')}")
+                print(f"[+] Incident Tracking ID: {result.get('ticket', 'N/A')}")
+            else:
+                 # Success but body was empty (prevents the crash)
+                 print(f"[✅] SOC PIPELINE SUCCESS - WARNING: Empty Response Body. Check Bridge logs for final status.")
+
         else:
             print(f"[🚨] SOAR BRIDGE REJECTED LOG: Status {r.status_code}")
 

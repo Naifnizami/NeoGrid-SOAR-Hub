@@ -1,23 +1,23 @@
 {
-  "1": {
-    "hostname": "dxb-sql-prod",
-    "ip_address": "10.0.5.5",
-    "command": "powershell.exe -NoP -NonI -W Hidden -Enc JABzID0gTmV3LU9ia...",
-    "severity": "High",
-    "description": "True Positive: Prohibited Encoded Command on SQL Prod"
-  },
-  "2": {
-    "hostname": "uae-cloud-gateway",
-    "ip_address": "10.0.80.50",
-    "command": "curl -X POST https://api.backup.uae -u system_service",
-    "severity": "Info",
-    "description": "False Positive: Authorized Cloud Gateway Sync"
-  },
-  "3": {
-    "hostname": "hr-desktop-user",
-    "ip_address": "192.168.1.102",
-    "command": "powershell.exe -Command 'Get-Process -Name chrome'",
-    "severity": "Low",
-    "description": "Suspicious: Unusual User Behavior on HR Desktop"
-  }
+    "1": {
+        "hostname": "dxb-sql-prod",
+        "ip_address": "10.0.5.5",
+        "command": "powershell -enc JABzID0gTmV3LU9iamVjdCBJTy5NZW1vcnlTdHJlYW0oW0NvbnZlcnRdOjpGcm9tQmFzZTY0U3RyaW5nKCdIMTRzSUFBQUFBQUFFSFFBQScpKTskYyA9IE5ldy1PYmplY3QgSU8uQ29tcHJlc3Npb24uR3ppcFN0cmVhbSgicyIsW0lPLkNvbXByZXNzaW9uLkNvbXByZXNzaW9uTW9kZSU6OkRlY29tcHJlc3MpOw==",
+        "severity": "High",
+        "description": "MALICIOUS: Obfuscated Encoded PowerShell on Finance SQL Server."
+    },
+    "2": {
+        "hostname": "uae-cloud-gateway",
+        "ip_address": "10.0.80.50",
+        "command": "curl -X POST https://api.backup.uae -u system_service:backup_token_2026",
+        "severity": "Info",
+        "description": "AUTHORIZED: Daily Cloud Sync via System Service."
+    },
+    "3": {
+        "hostname": "hr-desktop-user",
+        "ip_address": "192.168.1.102",
+        "command": "net user /add neo_temp Pass123! && net localgroup administrators neo_temp /add",
+        "severity": "Medium",
+        "description": "SUSPICIOUS: Local Account Creation on HR Desktop."
+    }
 }
