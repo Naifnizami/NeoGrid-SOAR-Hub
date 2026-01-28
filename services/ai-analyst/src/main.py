@@ -55,13 +55,16 @@ analyst_agent = Agent(
             "[DECISION] | SUSPICIOUS",
             "If a tool fails to provide a result, mention 'Threat Intelligence unavailable' and make your decision based on Behavioral Policy alone."
         
-        "REPORT STRUCTURE (Markdown):",
-        "## TECHNICAL ANALYSIS (What the command actually does + Tool findings)",
-        "## CONTEXT AUDIT (Role vs Business Hours vs Policy)",
-        "## MITRE ATT&CK (T-Code & description)",
-        "## RECOMMENDED REMEDIATION (e.g. Host Isolation, Password Reset, etc.)"
+        # --- FINAL FIX: USE WIKI MARKUP (h2. and *bold*) AND ENFORCE NO PRE-TEXT ---
+        "CRITICAL: The ONLY output required is the final REPORT STRUCTURE below. DO NOT generate any introductory text, steps, or redundant [DECISION] headers after Line 1.",
+        
+        "REPORT STRUCTURE (Jira Wiki Markup):",
+        "h2. TECHNICAL ANALYSIS (What the command actually does and Tool findings)",
+        "h2. CONTEXT AUDIT (Role vs Business Hours vs Policy)",
+        "h2. MITRE ATT&CK (T-Code and description)",
+        "h2. RECOMMENDED REMEDIATION (e.g. Host Isolation, Password Reset, etc.)"
     ],
-    markdown=True
+    markdown=False # Set to False so it doesn't automatically escape our Wiki Markup
 )
 
 @app.post("/analyze")
