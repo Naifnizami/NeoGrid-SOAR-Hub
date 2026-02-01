@@ -8,7 +8,7 @@
 
 NeoGrid SOAR Hub is a high-maturity security operations platform that moves beyond standard automation. It implements a **Contextual Logic-Gate Orchestrator** where an AI Lead Analyst dynamically directs specialized expert agents only when the context of a security signal requires it.
 
-The platform mirrors how a **Tier-3 SOC analyst leads a team**, reducing API overhead, eliminating alert fatigue, and automating reasoning-driven triage
+The platform mirrors how a **Tier-3 SOC analyst leads a team**, reducing API overhead, eliminating alert fatigue, and automating reasoning-driven triage.
 
 ---
 
