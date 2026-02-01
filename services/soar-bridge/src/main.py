@@ -48,20 +48,18 @@ class Incident(BaseModel):
     command: str
     severity: str = "Low"
 
-# --- [ 🛠️ UPDATED: INTELLIGENT JIRA DOCUMENT PARSER ] ---
+# --- [ 🛠️ ADF PARSER: WIKI MARKUP TO JIRA STRUCTURAL HEADERS ] ---
 def format_description_to_jira_doc(report_text):
     """
-    Intelligently converts AI-generated Wiki Markup into Jira v3 Document Format.
-    Recognizes 'h2.' and turns them into structural Heading nodes.
+    Converts AI Wiki Markup into Jira v3 Document Format.
+    Corrects 'h2.' strings into blue Heading nodes in the Jira UI.
     """
     content_blocks = []
-    
     for line in report_text.split('\n'):
         clean_line = line.strip()
         if not clean_line:
             continue
 
-        # Convert AI's "h2." markup into a proper Jira Heading Node
         if clean_line.startswith("h2. "):
             heading_text = clean_line.replace("h2. ", "")
             content_blocks.append({
@@ -70,24 +68,19 @@ def format_description_to_jira_doc(report_text):
                 "content": [{"type": "text", "text": heading_text}]
             })
         else:
-            # Treat everything else as a paragraph
-            # Strip standard markdown bolding markers to avoid JSON noise if the AI hallucinated them
-            content_text = clean_line.replace("**", "").replace("--", "").strip()
+            # Cleanup stray Markdown from AI and add as paragraph
+            content_text = clean_line.replace("**", "").replace("#", "").replace("--", "").strip()
             content_blocks.append({
                 "type": "paragraph",
                 "content": [{"type": "text", "text": content_text}]
             })
 
-    return {
-        "type": "doc",
-        "version": 1,
-        "content": content_blocks
-    }
+    return {"type": "doc", "version": 1, "content": content_blocks}
 
 # --- [ ENTERPRISE ACTION HANDLERS ] ---
 
 def create_jira_ticket(title, description, priority="Medium", assignee_id=None):
-    """Creates case in Jira using v3 REST API with structural formatting."""
+    """Creates case in Jira using v3 REST API."""
     url = f"{os.getenv('JIRA_URL')}/rest/api/3/issue"
     user = os.getenv("JIRA_USER_EMAIL")
     token = os.getenv("JIRA_API_TOKEN")
@@ -113,43 +106,38 @@ def create_jira_ticket(title, description, priority="Medium", assignee_id=None):
         return None
 
 def add_jira_comment(issue_key, message):
-    """Logs recurring security signals to an existing case."""
+    """Appends deduplicated alert history to an existing case."""
     url = f"{os.getenv('JIRA_URL')}/rest/api/2/issue/{issue_key}/comment"
     auth = base64.b64encode(f"{os.getenv('JIRA_USER_EMAIL')}:{os.getenv('JIRA_API_TOKEN')}".encode()).decode()
     try:
         requests.post(url, json={"body": message}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"}, timeout=5)
-    except: 
-        pass
+    except: pass
 
 def transition_to_archive(issue_key):
-    """Autonomous cleanup of false-positive detections."""
+    """Moves benign tickets to ARCHIVED column."""
     url = f"{os.getenv('JIRA_URL')}/rest/api/2/issue/{issue_key}/transitions"
     auth = base64.b64encode(f"{os.getenv('JIRA_USER_EMAIL')}:{os.getenv('JIRA_API_TOKEN')}".encode()).decode()
     try:
         requests.post(url, json={"transition": {"id": JIRA_ARCHIVE_ID}}, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"}, timeout=5)
-    except: 
-        pass
+    except: pass
 
-def send_slack_alert(verdict, hostname, priority, ticket_key):
-    """Detailed High-Fidelity alert sent to the SOC ChatOps channel."""
+def send_slack_alert(verdict_report, hostname, priority, ticket_key):
+    """
+    OpSec-focused Minimalist Slack Notification.
+    Ensures confidentiality on mobile by directing forensics to Jira.
+    """
     if not SLACK_WEBHOOK: return
 
-    try:
-        # Intelligently target the analysis section for the Slack snippet
-        start_tag = 'h2. TECHNICAL ANALYSIS'
-        end_tag = 'h2. CONTEXT AUDIT'
-        start_idx = verdict.index(start_tag) + len(start_tag)
-        end_idx = verdict.index(end_tag, start_idx)
-        preview = verdict[start_idx:end_idx].strip().replace('\n', ' ')[:500]
-    except:
-        preview = "Click ticket link for full AI forensics."
+    # Extract raw decision for clear visibility
+    decision = verdict_report.split('\n')[0].replace("[DECISION] | ", "").replace("#", "").strip()
 
     try:
         requests.post(SLACK_WEBHOOK, json={
             "text": (
                 f"🚨 *SOC ESCALATION*: {priority}\n"
-                f"*Host:* {hostname} | *Ticket:* <{os.getenv('JIRA_URL')}/browse/{ticket_key}|{ticket_key}>\n"
-                f"*Technical Summary:* {preview}"
+                f"*Host:* {hostname} | *Decision:* {decision}\n"
+                f"*Ticket:* <{os.getenv('JIRA_URL')}/browse/{ticket_key}|{ticket_key}>\n"
+                f"*OpSec Notice:* Detail secured in Jira. Click link for full AI analysis."
             )
         }, timeout=5)
     except: pass
@@ -160,21 +148,19 @@ def send_slack_alert(verdict, hostname, priority, ticket_key):
 async def process_pipeline(incident: Incident):
     print(f"\n[*] INGESTING ALERT: {incident.ip_address} | {incident.hostname}")
 
-    # 1. STATE MANAGEMENT
-    # Deduplicate repeated signals from the same IP to prevent ticket storms
+    # 1. DEDUPLICATION (State)
     existing_ticket, hit_count = memory.check_duplicate(incident.ip_address)
     if existing_ticket:
-        print(f"[!] DEDUPLICATING: Repeat activity on ticket {existing_ticket}")
-        recurring_msg = f"⚠️ RECURRING ACTIVITY detected ({hit_count + 1} hits). Cmd: `{incident.command}`"
-        add_jira_comment(existing_ticket, recurring_msg)
+        msg = f"⚠️ RECURRING ACTIVITY detected ({hit_count + 1} hits). Cmd: `{incident.command}`"
+        add_jira_comment(existing_ticket, msg)
         memory.update_incident(incident.ip_address, existing_ticket)
         return {"status": "Deduplicated", "ticket": existing_ticket}
 
-    # 2. ENRICHMENT & PRIVACY
+    # 2. ENRICHMENT & COMPLIANCE
     context = asset_inventory.get_context(incident.ip_address)
     safe_command = scrubber.redact_log(incident.command)
 
-    # 3. AGENT SWARM INVESTIGATION
+    # 3. TEAM SWARM REASONING
     try:
         ai_req = requests.post(AI_ENDPOINT, json={
             "hostname": incident.hostname, "ip_address": incident.ip_address,
@@ -182,57 +168,51 @@ async def process_pipeline(incident: Incident):
             "is_business_hours": context['is_business_hours']
         }, timeout=60)
         
-        verdict_report = ai_req.json().get("verdict_report", "Forensic analysis unavailable.")
+        verdict_report = ai_req.json().get("verdict_report", "Manual Review Required.")
 
-        # --- NEW ROBUST TRIAGE LOGIC ---
-        # Search the top excerpt of the report for the verdict to avoid formatting issues (# vs [])
-        decision_header = verdict_report[:200].upper()
-        
-        is_malicious = "MALICIOUS" in decision_header
-        is_fp = "AUTHORIZED" in decision_header
+        # --- ROBUST KEYWORD DETECTION ---
+        # Search the top block of text to determine automation logic
+        search_zone = verdict_report[:250].upper()
+        is_malicious = "MALICIOUS" in search_zone
+        is_fp = "AUTHORIZED" in search_zone
 
         # 4. ORCHESTRATED ACTIONS
-        # Define Priority based on criticalities
         if is_malicious:
             priority = "Highest" if context['criticality'] == 'CRITICAL' else "High"
             label = "TP ALERT"
-            assignee = ANALYST_ID # Assign confirmed threats to analyst
+            assignee = ANALYST_ID
         elif is_fp:
             priority = "Lowest"
-            label = "AUTO-RESOLVED"
-            assignee = None # Do NOT assign archived tickets to humans
+            label = "AUTO-RESOLVED" # Matches Jira Automation Rule
+            assignee = None
         else:
             priority = "Medium"
             label = "INVESTIGATE"
             assignee = ANALYST_ID
 
-        # Execute Autonomous Host Containment (Active Defense)
+        # Active Containment
         if is_malicious:
-            print(f"[🛡️] REMEDIATION: Triggering host isolation for {incident.ip_address}")
+            print(f"[🛡️] ACTION: Containment triggered for {incident.ip_address}")
             requests.post(AGENT_ENDPOINT, json={"ip": incident.ip_address}, timeout=5)
 
-        # 5. JIRA RECORD GENERATION
-        # Send clean Wiki Markup description to Jira
+        # Jira Synchronization
         jira_key = create_jira_ticket(
             title=f"[{label}] {incident.hostname}",
-            description=f"AI REPORT GENERATED AT {datetime.datetime.now()}\n\n{verdict_report}",
+            description=f"AI ANALYSIS LOGGED AT {datetime.datetime.now()}\n\n{verdict_report}",
             priority=priority,
             assignee_id=assignee
         )
 
         if jira_key:
             memory.update_incident(incident.ip_address, jira_key)
-            
-            # --- FINAL AUTOMATION GATING ---
             if is_fp:
-                # Trigger internal transition call to Archived
-                print(f"[✔] TRIAGE: {jira_key} classified as Benign. Moving to Archive.")
+                # Trigger primary API transition and Secondary Fail-safe label
                 transition_to_archive(jira_key)
             else:
-                # Notify human analyst on Slack only for things requiring attention
+                # Mobile-safe ChatOps alert
                 send_slack_alert(verdict_report, incident.hostname, priority, jira_key)
                 
-            print(f"[✅] FLOW COMPLETE: Ticket {jira_key} synchronized.")
+            print(f"[✅] FLOW COMPLETE: Ticket {jira_key} ({label})")
             return {"status": "Complete", "ticket": jira_key}
 
     except Exception as e:
