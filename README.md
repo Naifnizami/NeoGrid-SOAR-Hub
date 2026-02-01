@@ -1,189 +1,103 @@
-# NeoGrid SOAR Hub  
-### Autonomous Agentic SOC Orchestration & Active Defense Platform
+# NeoGrid SOAR Hub: Autonomous Agentic SOC  
+### Advanced Multi-Agent Orchestration & High-Fidelity Active Defense
 
-![Status](https://img.shields.io/badge/Status-PRODUCTION--READY-green)  
-![Architecture](https://img.shields.io/badge/Architecture-Agentic%20SOC-blueviolet)  
-![Security](https://img.shields.io/badge/Security-PII%20Redacted-blue)  
-![AI](https://img.shields.io/badge/LLM-Llama--3%20(Groq)-orange)  
-![Python](https://img.shields.io/badge/Python-3.11-blue)
+![Status](https://img.shields.io/badge/Status-FINAL%20PRODUCTION%20MASTER-green)
+![Architecture](https://img.shields.io/badge/Architecture-Main--Agent%20Team-purple)
+![OpSec](https://img.shields.io/badge/OpSec-Privacy--Engine%20Redacted-blue)
+![Jira](https://img.shields.io/badge/Jira-V3%20ADF%20Structured-orange)
 
----
+NeoGrid SOAR Hub is a high-maturity security operations platform that moves beyond standard automation. It implements a **Contextual Logic-Gate Orchestrator** where an AI Lead Analyst dynamically directs specialized expert agents only when the context of a security signal requires it.
 
-## 🧠 Overview
-
-**NeoGrid SOAR Hub** is an enterprise-style **Agentic Security Operations Platform** that demonstrates how AI-driven reasoning, business context awareness, and automated response can eliminate Tier-1 alert fatigue and accelerate containment.
-
-The platform combines:
-
-- Cognitive AI analysis (Llama-3)
-- Corporate policy intelligence
-- MITRE ATT&CK mapping
-- Threat reputation lookups
-- Automated remediation
-
-to mimic how a **real SOC team thinks, validates, and acts**.
+The platform mirrors how a **Tier-3 SOC analyst leads a team**, reducing API overhead, eliminating alert fatigue, and automating reasoning-driven triage.
 
 ---
 
-## 🎯 The Problem NeoGrid Solves
+## 🚀 Main-Agent Orchestration Model
 
-| SOC Challenge | NeoGrid Solution |
-|--------------|------------------|
-| Alert fatigue & false positives | **Context-Aware Behavioral Triage** using asset ownership, business hours, and policy rules |
-| Risk of sending sensitive logs to external LLMs | **PII Redaction Layer** sanitizes logs before AI analysis |
-| Slow MTTC (Mean Time To Contain) | **Automated Host Isolation** for confirmed malicious activity |
-| Duplicate alert flooding | **Stateful Deduplication** updates one Jira case instead of creating many |
-| Inconsistent investigations | **Structured AI Forensic Reports** stored in Jira ADF format |
+NeoGrid uses a **sequential expert-polling architecture** to optimize decision fidelity and resource efficiency.
 
----
+### 🧠 Lead SOC Orchestrator (Main Agent)
+The central reasoning engine. It evaluates telemetry and decides which specialist agents are required.
 
-## 🧩 Agentic Architecture Model
+### 🕵️ Threat Intelligence Specialist  
+Activated only for **public IP infrastructure**. Performs IP reputation and hash intelligence lookups.
 
-NeoGrid follows an **Agentic SOC Model** where reasoning is centralized but powered by multiple knowledge sources and intelligence tools.
+### 🛠 Detection Specialist  
+Analyzes command-line behavior and maps activity to **MITRE ATT&CK techniques**.
 
-### 🧠 AI Security Analyst Agent (Core Agent)
-
-The cognitive engine responsible for:
-
-- Behavioral analysis  
-- Account misuse detection  
-- Policy-aware decision making  
-- Final verdict generation  
-
-The agent operates like a **Level-3 SOC Analyst**.
+### 🏢 Compliance & Asset Specialist  
+Evaluates activity against **corporate policy**, business hours, and asset criticality to identify approved exceptions.
 
 ---
 
-### 🔍 Integrated Intelligence & Knowledge Sources
+## 🧩 Key Capabilities
 
-| Component | Purpose |
-|----------|--------|
-| **Threat Intelligence Tools** | IP reputation and file hash checks |
-| **MITRE ATT&CK Mapping** | Maps observed behavior to TTPs |
-| **Corporate Policy RAG** | Distinguishes maintenance vs malicious behavior |
-| **Asset Context Service** | Business hours, owner, and asset criticality |
-
-These act as **specialist knowledge layers** supporting the main analyst agent.
-
----
-
-## 🏗 Enterprise Architecture
-
-The platform uses a **containerized microservices architecture** orchestrated with Docker.
-
-| Service | Role |
-|--------|------|
-| **AI Analyst Service** | Llama-3 powered reasoning engine |
-| **SOAR Bridge (FastAPI)** | Orchestration, policy enforcement, case management |
-| **Privacy Engine** | PII redaction before AI processing |
-| **State Manager** | Deduplication and incident memory |
-| **Asset Service** | Business context enrichment |
-| **Telemetry Generator** | Simulated EDR/XDR alerts |
-| **Mock EDR Agent** | Simulated host isolation |
+- Agentic SOC reasoning architecture  
+- Context-driven module activation  
+- MITRE ATT&CK behavioral mapping  
+- Corporate policy validation (RAG-based)  
+- Privacy-first telemetry handling  
+- Jira v3 structured forensic reporting  
+- Stateful alert deduplication  
+- Hybrid-SOAR automated containment  
 
 ---
 
-## 🔁 SOC Workflow (Sense → Think → Act)
+## 🛡 Enterprise Governance & Performance
+
+### 1. Privacy Shield Layer
+Regex-based PII masking removes internal usernames, emails, and sensitive identifiers before AI processing.
+
+### 2. Context-Gate Efficiency
+The orchestrator bypasses unnecessary agents (e.g., skipping Threat Intel for private IPs) to reduce compute overhead.
+
+### 3. Stateful Stress Resilience
+Repeated alerts are merged into existing investigations, preventing ticket floods during alert storms.
+
+### 4. Zero-Touch Triage
+Authorized activity is auto-resolved and archived via Jira automation while maintaining audit visibility.
+
+---
+
+## 🧪 Simulation Scenarios
+
+| Scenario | Objective | Logical Flow | Outcome |
+|----------|-----------|-------------|---------|
+| PowerShell Obfuscation | Detect malicious behavior | Detection maps T1059, Compliance flags violation | **[TP ALERT] Host Isolated** |
+| Admin Sync | Validate policy exception | Compliance identifies approved maintenance | **[AUTO-RESOLVED] Archived** |
+| Stress Run | Test resilience | Deduplication merges recurring alerts | No ticket flooding |
+
+---
+
+## 🛠 Installation & Setup
+
+    git clone https://github.com/Naifnizami/NeoGrid-SOAR-Hub.git
+    cd NeoGrid-SOAR-Hub
+    cp .env.example .env
+    docker-compose up --build -d
+
+---
+
+## 📊 Architecture Diagram
 
 ```mermaid
 graph TD
-
-A[Telemetry Source] --> H[Privacy Engine]
-H --> B[SOAR Bridge]
-
-B --> C[AI Security Analyst Agent]
-C --> B
-
-B --> J[Jira Case Management]
-B --> S[Slack SOC Alerts]
-B --> D[EDR Containment Agent]
-
-B --> F[Policy & MITRE Knowledge]
-B --> G[Incident Memory Store]
+    A[Telemetry Generator] --> H[Privacy Engine Scrubber]
+    H --> B[SOAR Bridge / FastAPI]
+    B --> C[Lead SOC Orchestrator]
+    C --> Decision{Context Gate}
+    Decision -->|Public IP| C1[Threat Intel Specialist]
+    Decision -->|Always| C2[Detection Specialist]
+    Decision -->|Always| C3[Compliance Specialist]
+    C --> B
+    B --> D[Jira Case Management]
+    B --> E[Slack Alerts]
+    B --> F[EDR Containment Agent]
+    D --> G[Auto-Archive Rule]
 ```
 
 ---
 
-## 🛡 Key Enterprise Features
+### 🛡 Outcome
 
-### 1️⃣ PII Redaction Layer
-Logs are sanitized before reaching the LLM:
-- Emails  
-- Internal usernames  
-- Sensitive identifiers  
-
-Ensures compliance and safe AI usage.
-
----
-
-### 2️⃣ Policy-Over-Suspicion Logic
-The system reduces false positives by prioritizing:
-
-- Approved maintenance windows  
-- Asset ownership  
-- Corporate whitelists  
-
-Suspicious ≠ malicious unless context confirms.
-
----
-
-### 3️⃣ Stateful Deduplication
-Recurring activity from the same source:
-- Updates an existing Jira case  
-- Appends evidence  
-- Prevents alert storms
-
----
-
-### 4️⃣ Automated Active Defense
-If activity is confirmed malicious:
-- Host isolation is triggered automatically  
-- Slack SOC alert is sent  
-- High-priority Jira ticket created
-
----
-
-### 5️⃣ Human-in-the-Loop Oversight
-False positives are:
-- Archived, not deleted  
-- Available for senior analyst audit  
-
-This keeps AI accountable.
-
----
-
-## ⚙️ Installation
-
-### 1. Configure Environment
-Create `.env` from `.env.example` and add:
-
-- Jira API token  
-- Slack webhook URL  
-
----
-
-### 2. Launch the Platform
-
-```bash
-docker-compose up --build -d
-```
-
----
-
-## 🧪 Demo Scenarios
-
-| Scenario | Command | Expected Result |
-|---------|---------|-----------------|
-| Malicious Threat | `docker-compose exec telemetry-gen python src/sender.py 1` | **[TP ALERT]** Jira case + Host Isolation + Slack alert |
-| False Positive | `docker-compose exec telemetry-gen python src/sender.py 2` | **[AUTO-RESOLVED]** Archived ticket |
-| Stress Test | `docker-compose exec telemetry-gen python src/batch_sender.py 10` | Deduplicated incidents, updated Jira case |
-
----
-
-## 🧠 Outcome
-
-NeoGrid SOAR Hub demonstrates how:
-
-**AI reasoning + policy intelligence + automated containment**
-
-can reduce SOC workload, improve decision accuracy, and accelerate response — shifting human analysts toward **Threat Hunting and Detection Engineering** instead of repetitive triage.
+NeoGrid SOAR Hub demonstrates how **agentic orchestration + contextual policy intelligence + automated containment** can drastically reduce SOC workload while improving response speed, consistency, and governance.
