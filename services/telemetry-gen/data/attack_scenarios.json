@@ -2,22 +2,31 @@
     "1": {
         "hostname": "dxb-sql-prod",
         "ip_address": "10.0.5.5",
-        "command": "powershell -enc JABzID0gTmV3LU9iamVjdCBJTy5NZW1vcnlTdHJlYW0oW0NvbnZlcnRdOjpGcm9tQmFzZTY0U3RyaW5nKCdIMTRzSUFBQUFBQUFFSFFBQScpKTskYyA9IE5ldy1PYmplY3QgSU8uQ29tcHJlc3Npb24uR3ppcFN0cmVhbSgicyIsW0lPLkNvbXByZXNzaW9uLkNvbXByZXNzaW9uTW9kZSU6OkRlY29tcHJlc3MpOw==",
-        "severity": "High",
-        "description": "MALICIOUS: Obfuscated Encoded PowerShell on Finance SQL Server."
+        "command": "powershell -enc JABzID0gTmV3LU9i...",
+        "username": "local_dev_user",
+        "parent_process": "w3wp.exe",
+        "logon_type": "Interactive",
+        "mfa_used": false,
+        "description": "Exploit: IIS worker process spawning encoded PowerShell with no MFA session."
     },
     "2": {
         "hostname": "uae-cloud-gateway",
         "ip_address": "10.0.80.50",
         "command": "curl -X POST https://api.backup.uae -u system_service:backup_token_2026",
+        "username": "system_service",
+        "parent_process": "taskhostw.exe",
+        "logon_type": "Service",
         "severity": "Info",
-        "description": "AUTHORIZED: Daily Cloud Sync via System Service."
+        "description": "AUTHORIZED: Routine cloud synchronization triggered by an authorized system service account."
     },
     "3": {
         "hostname": "hr-desktop-user",
         "ip_address": "192.168.1.102",
         "command": "net user /add neo_temp Pass123! && net localgroup administrators neo_temp /add",
+        "username": "sarah_local",
+        "parent_process": "cmd.exe",
+        "logon_type": "Interactive",
         "severity": "Medium",
-        "description": "SUSPICIOUS: Local Account Creation on HR Desktop."
+        "description": "SUSPICIOUS: Admin account creation via interactive shell login on a non-admin workstation."
     }
 }

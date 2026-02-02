@@ -1,103 +1,206 @@
-# NeoGrid SOAR Hub: Autonomous Agentic SOC  
-### Advanced Multi-Agent Orchestration & High-Fidelity Active Defense
+# NeoGrid SOAR Hub: OCSF-Native Autonomous SOC  
+### Advanced Hierarchical Multi-Agent Swarm & Intelligent Schema Normalization
 
-![Status](https://img.shields.io/badge/Status-FINAL%20PRODUCTION%20MASTER-green)
-![Architecture](https://img.shields.io/badge/Architecture-Main--Agent%20Team-purple)
-![OpSec](https://img.shields.io/badge/OpSec-Privacy--Engine%20Redacted-blue)
-![Jira](https://img.shields.io/badge/Jira-V3%20ADF%20Structured-orange)
+![Build Status](https://img.shields.io/badge/Status-FINAL%20OCSF%20MASTER-green)
+![Standard](https://img.shields.io/badge/Standard-OCSF%201.7.0-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Hierarchical%20Agent%20Swarm-purple)
+![AI](https://img.shields.io/badge/LLM-Llama--3%20(Groq)-orange)
 
-NeoGrid SOAR Hub is a high-maturity security operations platform that moves beyond standard automation. It implements a **Contextual Logic-Gate Orchestrator** where an AI Lead Analyst dynamically directs specialized expert agents only when the context of a security signal requires it.
-
-The platform mirrors how a **Tier-3 SOC analyst leads a team**, reducing API overhead, eliminating alert fatigue, and automating reasoning-driven triage.
+**NeoGrid SOAR Hub** is a production-maturity security operations platform engineered for **high-fidelity, context-aware triage**.  
+It goes beyond rule-based SOAR by combining **OCSF 1.7.0 telemetry normalization** with a **hierarchical AI agent swarm**, enabling automated reasoning that mirrors how a Tier-3 SOC team investigates incidents.
 
 ---
 
-## 🚀 Main-Agent Orchestration Model
+## 🧠 Architecture Philosophy — *Think Before Act*
 
-NeoGrid uses a **sequential expert-polling architecture** to optimize decision fidelity and resource efficiency.
+NeoGrid separates detection and response into three intelligent layers.
 
-### 🧠 Lead SOC Orchestrator (Main Agent)
-The central reasoning engine. It evaluates telemetry and decides which specialist agents are required.
+---
+
+## 1️⃣ Normalization Engine (OCSF 1.7.0)
+
+The **SOAR Bridge** ingests raw EDR/XDR telemetry and converts it into **Open Cybersecurity Schema Framework (OCSF)** objects.  
+This ensures consistent AI reasoning regardless of vendor log format.
+
+### Supported OCSF Event Classes
+
+| OCSF Class | Purpose |
+|------------|---------|
+| **Process Activity [1007]** | Analyzes process ancestry, command-line arguments, parent-child lineage, and integrity levels |
+| **Authentication [3002]** | Evaluates login types (RDP vs Interactive), MFA presence, and account usage context |
+| **Network Activity [4001]** | Contextualizes external connections, ingress/egress behavior, and infrastructure reputation |
+
+This standardization allows the AI to reason using **behavioral semantics**, not raw log noise.
+
+---
+
+## 2️⃣ Hierarchical Multi-Agent Swarm (The AI SOC Team)
+
+A **Lead L3 SOC Orchestrator** acts as the decision authority.  
+It dynamically invokes specialists only when required, minimizing API overhead and improving verdict accuracy.
+
+### 🧠 Lead SOC Orchestrator  
+Primary reasoning engine. Synthesizes findings and issues final forensic verdicts.
 
 ### 🕵️ Threat Intelligence Specialist  
-Activated only for **public IP infrastructure**. Performs IP reputation and hash intelligence lookups.
+Activated only for **public infrastructure**. Performs IP and file-hash reputation lookups.
 
 ### 🛠 Detection Specialist  
-Analyzes command-line behavior and maps activity to **MITRE ATT&CK techniques**.
+Maps behavior to **MITRE ATT&CK techniques** based on OCSF-normalized process and network activity.
 
-### 🏢 Compliance & Asset Specialist  
-Evaluates activity against **corporate policy**, business hours, and asset criticality to identify approved exceptions.
+### 🏢 Compliance & Policy Auditor  
+Evaluates signals against:
+- Corporate maintenance windows  
+- Asset criticality  
+- Whitelists & approved operational patterns  
 
----
-
-## 🧩 Key Capabilities
-
-- Agentic SOC reasoning architecture  
-- Context-driven module activation  
-- MITRE ATT&CK behavioral mapping  
-- Corporate policy validation (RAG-based)  
-- Privacy-first telemetry handling  
-- Jira v3 structured forensic reporting  
-- Stateful alert deduplication  
-- Hybrid-SOAR automated containment  
+This layer enables **policy-over-suspicion logic**, dramatically reducing false positives.
 
 ---
 
-## 🛡 Enterprise Governance & Performance
+## 3️⃣ Automated Decision & Response
 
-### 1. Privacy Shield Layer
-Regex-based PII masking removes internal usernames, emails, and sensitive identifiers before AI processing.
+Specialist reports are fused by the Lead Orchestrator to drive response:
 
-### 2. Context-Gate Efficiency
-The orchestrator bypasses unnecessary agents (e.g., skipping Threat Intel for private IPs) to reduce compute overhead.
+| Verdict | Automated Action |
+|--------|------------------|
+| **[MALICIOUS]** | Host isolation via EDR RTR module |
+| **[SUSPICIOUS]** | Structured Jira investigation created |
+| **[AUTHORIZED]** | Auto-resolved & archived through Jira automation |
 
-### 3. Stateful Stress Resilience
-Repeated alerts are merged into existing investigations, preventing ticket floods during alert storms.
+---
 
-### 4. Zero-Touch Triage
-Authorized activity is auto-resolved and archived via Jira automation while maintaining audit visibility.
+## 🛡️ Key Enterprise Capabilities
+
+### 🔒 Privacy-First Processing
+A dedicated **Privacy Engine** redacts emails, usernames, and internal identifiers before any data is processed by external LLMs.
+
+### ⚙️ Context-Gated Intelligence
+Threat Intel lookups are skipped for private IP space, conserving resources and prioritizing internal policy logic.
+
+### 🧩 Stateful Memory & Deduplication
+A JSON-based state manager correlates repeated alerts into existing Jira cases, preventing ticket floods during alert storms.
+
+### 📊 Structured Case Reporting
+Incidents are pushed using **Jira v3 ADF format**, ensuring machine-readable and human-friendly forensic records.
+
+### 🧠 Resilient Swarm Design
+Even if an external intelligence tool fails, the AI continues reasoning using behavioral analysis and corporate policy.
 
 ---
 
 ## 🧪 Simulation Scenarios
 
-| Scenario | Objective | Logical Flow | Outcome |
+| Scenario | Objective | Logical Path | Outcome |
 |----------|-----------|-------------|---------|
-| PowerShell Obfuscation | Detect malicious behavior | Detection maps T1059, Compliance flags violation | **[TP ALERT] Host Isolated** |
-| Admin Sync | Validate policy exception | Compliance identifies approved maintenance | **[AUTO-RESOLVED] Archived** |
-| Stress Run | Test resilience | Deduplication merges recurring alerts | No ticket flooding |
+| Encoded PowerShell | Detect obfuscation | Detection maps MITRE T1059, policy violation found | **[TP ALERT] Host Isolated** |
+| Admin Backup Task | Validate whitelist | Compliance agent confirms approved maintenance | **[AUTO-RESOLVED] Archived** |
+| Alert Storm (10 events) | Stress test deduplication | State manager correlates recurring hits | No ticket flooding |
 
 ---
 
-## 🛠 Installation & Setup
+## 🛠 Technology Stack
 
-    git clone https://github.com/Naifnizami/NeoGrid-SOAR-Hub.git
-    cd NeoGrid-SOAR-Hub
-    cp .env.example .env
-    docker-compose up --build -d
+| Layer | Technology |
+|------|------------|
+| Agent Framework | Agno (Phidata) |
+| AI Model | Llama 3.3 (Groq) |
+| API Layer | FastAPI |
+| Infrastructure | Docker Compose |
+| Schema Standard | OCSF 1.7.0 |
+| Case Management | Jira Cloud REST API v3 |
+| Notifications | Slack Webhooks |
 
 ---
 
-## 📊 Architecture Diagram
+## 📁 Project Structure
 
-```mermaid
-graph TD
-    A[Telemetry Generator] --> H[Privacy Engine Scrubber]
-    H --> B[SOAR Bridge / FastAPI]
-    B --> C[Lead SOC Orchestrator]
-    C --> Decision{Context Gate}
-    Decision -->|Public IP| C1[Threat Intel Specialist]
-    Decision -->|Always| C2[Detection Specialist]
-    Decision -->|Always| C3[Compliance Specialist]
-    C --> B
-    B --> D[Jira Case Management]
-    B --> E[Slack Alerts]
-    B --> F[EDR Containment Agent]
-    D --> G[Auto-Archive Rule]
+```text
+SOC-INTEGRATED-PLATFORM/
+│
+├── docker-compose.yml
+├── .env.example
+├── README.md
+├── LICENSE
+│
+├── scripts/
+│   ├── check_jira_column_id.py
+│   └── get_jira_analyst_id.py
+│
+├── services/
+│   ├── ai-analyst/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── src/
+│   │   │   └── main.py
+│   │   └── tools/
+│   │       └── intel_tools.py
+│   │
+│   ├── soar-bridge/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── config/
+│   │   │   └── soar_config.yaml
+│   │   └── src/
+│   │       ├── main.py
+│   │       ├── normalizer.py
+│   │       ├── ocsf_schemas.py
+│   │       ├── asset_service.py
+│   │       └── state_manager.py
+│   │
+│   └── telemetry-gen/
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       ├── data/
+│       │   └── attack_scenarios.json
+│       └── src/
+│           ├── sender.py
+│           ├── batch_sender.py
+│           └── listener.py
+│
+├── shared/
+│   ├── asset_inventory.csv
+│   ├── incident_state.json
+│   ├── mitre_db.json
+│   ├── privacy_engine.py
+│   └── security_policy_maintenance.md
+│
+└── .gitignore
 ```
 
 ---
 
-### 🛡 Outcome
+## 📊 System Logic Flow
 
-NeoGrid SOAR Hub demonstrates how **agentic orchestration + contextual policy intelligence + automated containment** can drastically reduce SOC workload while improving response speed, consistency, and governance.
+```mermaid
+graph TD
+    subgraph Data Source
+        A[Raw Telemetry] --> B[SOAR Bridge]
+    end
+
+    subgraph Normalization Layer
+        B --> C{OCSF Normalizer}
+        C -->|1007| P[Process Object]
+        C -->|3002| AU[Authentication Object]
+        C -->|4001| N[Network Object]
+    end
+
+    subgraph Hierarchical Agent Swarm
+        P & AU & N --> L[Lead SOC Orchestrator]
+        L -->|Public IP?| T[Threat Intel Specialist]
+        L --> D[Detection Specialist]
+        L --> C2[Compliance Auditor]
+    end
+
+    subgraph Outcome Management
+        L --> B
+        B --> J[Jira Case System]
+        B --> E[EDR Containment]
+    end
+```
+
+---
+
+## 🛡️ Outcome
+
+NeoGrid SOAR Hub demonstrates how **OCSF normalization + hierarchical AI reasoning + automated response** can transform SOC operations by reducing alert fatigue, increasing verdict accuracy, and maintaining enterprise-grade governance.
