@@ -17,7 +17,7 @@ services:
     build: ./services/soar-bridge
     container_name: nif_soar_bridge
     ports:
-      - "8000:8000"
+      - "8080:8000"
     env_file: .env
     depends_on:
       - ai-analyst

@@ -1,80 +1,70 @@
 import os
 import requests
-import json
+import ipaddress 
 from dotenv import load_dotenv
 
 load_dotenv()
-# Keep this one, as VirusTotal requires it.
 VT_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
 def check_ip_reputation(ip: str):
     """
-    Checks IP Geolocation and basic risk context via IP-API (No API Key Required).
+    Checks IP reputation context via IP-API. 
+    Standardized to skip lookups for internal (RFC 1918) and loopback addresses.
     """
-    # NO KEY NEEDED - reliable free service for demo context
-    url = f"http://ip-api.com/json/{ip}"
+    # 1. Validation Safety: Handle Null or Empty Inputs
+    if not ip or str(ip).lower() in ["none", "null", "", "undefined"]:
+        return "Tool Notice: IP metadata unavailable for this signal."
+
+    # 2. RFC 1918 and Loopback Compliance (Enterprise Standard)
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+            return f"Context Notice: IP {ip} is an internal/loopback asset. External lookup bypassed by security policy."
+    except ValueError:
+        return "Tool Notice: The provided indicator is not a valid IP address."
     
+    # 3. Public API Call
+    url = f"http://ip-api.com/json/{ip}"
     try:
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            
             if data.get('status') == 'success':
-                report = (
-                    f"External IP Context: **{ip}**\n"
-                    f"- **Country:** {data.get('country')}\n"
-                    f"- **City/Region:** {data.get('city')}, {data.get('regionName')}\n"
-                    f"- **ISP/ORG:** {data.get('isp')}\n"
+                return (
+                    f"External Intelligence for {ip}:\n"
+                    f"- Geolocation: {data.get('country')}, {data.get('city')}\n"
+                    f"- ISP/ORG: {data.get('isp')}"
                 )
-                # The AI can use this context for behavioral analysis (e.g., login from a new country)
-                return report
-            
-            return f"IP Context lookup failed: {data.get('message', 'Unknown Error')}"
-
-        return "External Intelligence connection failed (Status: 500/400 from vendor)."
-    except requests.exceptions.Timeout:
-        return "External Intelligence connection timed out."
-    except Exception:
-        return "Intelligence connection error (Check DNS/Network)."
+        return "Intelligence tool: Connection success, but no public record found."
+    except:
+        return "Intelligence tool: External connection timed out."
 
 def check_file_hash(file_hash: str):
-    """Checks VirusTotal for file risk analytics (API Key Required)."""
+    """
+    Checks VirusTotal for risk forensics. 
+    Standardized with a length-check guard to prevent junk API calls.
+    """
+    # 1. Structural Validation (Prevents API credit waste)
+    clean_hash = str(file_hash).strip()
+    if not clean_hash or len(clean_hash) not in [32, 40, 64]:
+        return "Notice: No valid hash (MD5/SHA) provided. Integrity lookup bypassed."
+
     if not VT_API_KEY: 
-        return "VirusTotal API Key missing. Skipping hash check."
+        return "Warning: VirusTotal API Key missing from SOAR Environment."
     
-    url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
+    # 2. VT v3 API Call
+    url = f"https://www.virustotal.com/api/v3/files/{clean_hash}"
     headers = {"x-apikey": VT_API_KEY}
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             stats = response.json()['data']['attributes']['last_analysis_stats']
-            return f"VirusTotal Scan: Found {stats['malicious']} engines flagging this as malicious."
-        return "No VirusTotal data found for this hash."
-    except Exception as e: 
-        return f"VT API connection error: {str(e)}"
-
-# Path points to the shared volume mount inside the Docker container
-MITRE_DB_PATH = "/app/shared/mitre_db.json"
-
-def get_mitre_context(t_code: str):
-    """Maps T-Codes to the Enterprise MITRE DB JSON for investigation context."""
-    try:
-        with open(MITRE_DB_PATH, 'r') as f:
-            mitre_data = json.load(f)
-        
-        code = t_code.strip().upper()
-        
-        if code in mitre_data:
-            info = mitre_data[code]
+            total = stats['malicious'] + stats['harmless'] + stats['undetected']
             return (
-                f"MITRE ATT&CK Info found: {info['technique']} | "
-                f"Tactic: {info['tactic']} | "
-                f"Description: {info['description']} | "
-                f"Baseline Severity: {info['severity']}"
+                f"VirusTotal Scan for {clean_hash[:8]}... : "
+                f"{stats['malicious']}/{total} engines flagged as MALICIOUS."
             )
-        
-        return f"MITRE context not found for code: {code}. Missing from local intelligence."
-    
-    except Exception:
-        return "Internal Error retrieving MITRE context. Check mitre_db.json file integrity."
+        return f"Intel: Hash {clean_hash[:8]}... was checked; no known malware record found."
+    except: 
+        return "Intel: VirusTotal connection error (check system network)."
