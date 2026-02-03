@@ -1,5 +1,5 @@
 import re
-from ocsf_schemas import OCSFContainer, ProcessBlock, AuthBlock, NetworkBlock, OCSFBase
+from ocsf_schemas import OCSFContainer, ProcessBlock, AuthBlock, OCSFBase
 
 class OCSFNormalizer:
     @staticmethod
