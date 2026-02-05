@@ -108,20 +108,12 @@ graph TD
 
 ```text
 SOC-INTEGRATED-PLATFORM/
-├── scripts/                      # Setup & Diagnostics
+├── scripts/
 ├── services/
-│   ├── ai-analyst/               # Agent Swarm Reasoning Engine
-│   │   ├── src/main.py           # Orchestration Logic
-│   │   └── tools/intel_tools.py  # RFC 1918 Aware API Tools
-│   ├── soar-bridge/              # Control Plane
-│   │   ├── config/               # Logic Definitions
-│   │   └── src/                  # Normalizers, Services, and State
-│   └── telemetry-gen/            # Simulation & Remediation
-│       └── src/                  # Alert Senders and EDR Agent
-├── shared/                       # Corporate Governance Data
-│   ├── asset_inventory.csv       # Baseline CMDB
-│   ├── privacy_engine.py         # PII Scrubbing Interceptor
-│   └── security_policy_maintenance.md # RAG Context
+│   ├── ai-analyst/
+│   ├── soar-bridge/
+│   └── telemetry-gen/
+├── shared/
 └── docker-compose.yml
 ```
 
@@ -129,13 +121,15 @@ SOC-INTEGRATED-PLATFORM/
 
 ## 🛠 Technology Stack
 
-| Category | Technology |
-|----------|------------|
+| Layer | Technology |
+|------|------------|
 | **Languages** | Python 3.11 (FastAPI, Pandas, Pydantic) |
 | **Agent Architecture** | Agno (Phidata), Llama-3.3-70B (Groq) |
-| **Infrastructure** | Docker Compose, Splunk Enterprise, Kali Linux |
+| **API Layer** | FastAPI |
+| **Infrastructure** | Docker Compose |
 | **Standards** | OCSF 1.7.0, MITRE ATT&CK, RFC 1918 |
-| **Workflows** | Atlassian Jira v3 (ADF Formatter), Slack Webhooks |
+| **Workflow Engine** | **n8n (Centralized Orchestration)** |
+| **Workflows & Integrations** | Atlassian Jira v3 (ADF Formatter), Slack Webhooks |
 
 ---
 

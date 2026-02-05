@@ -1,5 +1,28 @@
 services:
+  # --- The Master Orchestrator (The "Director" Hub) ---
+  # This is the centralized Control Plane for the NeoGrid Swarm.
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: nif_n8n_soar
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      # 🚀 THE FIX: Disable the internal Python task runner to clean logs
+      - N8N_BLOCK_PYTHON_SCRIPT_NODE=true
+      # 🚀 PERFORMANCE: Allow large Splunk payloads (e.g. big encoded strings)
+      - N8N_PAYLOAD_SIZE_MAX=16 
+    volumes:
+      - ./n8n_storage:/home/node/.n8n
+    networks:
+      - ngr_soc_network
+    restart: unless-stopped
+
   # --- The Cognitive Brain ---
+  # Agno-powered microservice for forensic reasoning.
   ai-analyst:
     build: ./services/ai-analyst
     container_name: nif_ai_analyst
@@ -12,7 +35,8 @@ services:
       - ngr_soc_network
     restart: unless-stopped
 
-  # --- The Orchestration Engine ---
+  # --- The Intelligence Adapter / Logic Service ---
+  # Standardizes telemetry and manages state.
   soar-bridge:
     build: ./services/soar-bridge
     container_name: nif_soar_bridge
@@ -28,18 +52,19 @@ services:
       - ngr_soc_network
     restart: unless-stopped
 
-  # --- The Simulation Dispatcher ---
+  # --- The Simulation & Response Layer ---
+  # Telemetry Generation and Mock Host Isolation.
   telemetry-gen:
     build: ./services/telemetry-gen
     container_name: nif_telemetry_sim
     depends_on:
       - soar-bridge
     volumes:
-      # CRITICAL: Maps your code live so you can change attack scenarios
+      # Maps code live for simulation agility
       - ./services/telemetry-gen:/app 
     environment:
       - BRIDGE_URL=http://soar-bridge:8000/alert
-    # UPDATED COMMAND: Start listener, send to background (&), then keep alive with tail
+    # Keeps EDR listener active in background
     command: sh -c "python src/listener.py & tail -f /dev/null"
     networks:
       - ngr_soc_network
