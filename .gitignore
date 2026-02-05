@@ -9,3 +9,14 @@ shared/incident_state.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# n8n runtime storage
+n8n_storage/
+
+# local databases
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# logs
+*.log
