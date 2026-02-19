@@ -1,3 +1,5 @@
+openai
+pydantic[email]
 fastapi
 uvicorn
 agno

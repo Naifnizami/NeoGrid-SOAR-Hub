@@ -1,6 +1,7 @@
 services:
-  # --- The Master Orchestrator (The "Director" Hub) ---
+  # The Master Orchestrator (The "Director" Hub) ---
   # This is the centralized Control Plane for the NeoGrid Swarm.
+
   n8n:
     image: n8nio/n8n:latest
     container_name: nif_n8n_soar

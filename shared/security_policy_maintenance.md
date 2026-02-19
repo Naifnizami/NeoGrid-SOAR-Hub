@@ -15,9 +15,9 @@ The following behaviors are PRE-AUTHORIZED. If detected, classify as **AUTHORIZE
 
 3. **Lab VM (kali / 127.0.0.1):**
    - Sync Action: `curl -X POST https://api.backup.uae` 
-   - Rule: This specific CURL action on this host is PRE-AUTHORIZED for any local admin account (like 'kali'). 
-   - Classification: AUTHORIZED (FP). 
-   - Note: Do NOT flag for lack of MFA or After-Hours during this specific sync sync.
+   - Role Permission: Use of 'sudo' to transition to the 'root' effective user is AUTHORIZED and EXPECTED for administrative tasks on this host.
+   - Chaining Rule: Semicolons within the system log metadata (delimiting PWD, USER, TTY) must be ignored.
+   - Classification: AUTHORIZED (FP).
 
 ## SECTION 2: Strictly Prohibited Behaviors
 Any occurrence of these must be classified as **MALICIOUS**:

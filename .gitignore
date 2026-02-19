@@ -1,22 +1,12 @@
-# Security Keys
+# --- Security & Credentials ---
 .env
+n8n_storage/config
+n8n_storage/database.sqlite*
+n8n_storage/*.log
+n8n_storage/binaryData/
 
-# Local Memory/Logs
-shared/incident_state.json
-**/__pycache__
-
-
-# OS files
+# --- Python & System junk ---
+__pycache__/
+*.py[cod]
 .DS_Store
 Thumbs.db
-
-# n8n runtime storage
-n8n_storage/
-
-# local databases
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-
-# logs
-*.log

@@ -1,140 +1,117 @@
 import os
 import sys
+import json
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from agno.agent import Agent
 from agno.models.groq import Groq
 
-# 1. PATH FIX
+# Ensure local modules are discoverable
 sys.path.append('/app') 
 from tools.intel_tools import check_ip_reputation, check_file_hash
 
 load_dotenv()
 
-# Load Corporate Policy Context (The RAG knowledge)
+# Configuration & Policy Loader
 KNOWLEDGE_FILE = "/app/shared/security_policy_maintenance.md"
-
-def get_security_policy():
-    """Reads corporate policy. Uses 'os' to verify path integrity inside Docker."""
-    if not os.path.exists(KNOWLEDGE_FILE):
-        print("[🚨] CONFIG ERROR: Policy file not found in /app/shared/")
-        return "Internal Policy knowledge is currently unavailable."
-    try:
-        with open(KNOWLEDGE_FILE, 'r') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error loading policy: {str(e)}"
-
-POLICY_TEXT = get_security_policy()
 shared_model = Groq(id="llama-3.3-70b-versatile")
 
-# --- 🚀 OCSF SPECIALIST ROLES (Back-End Experts) ---
+def get_security_policy():
+    """Load RAG context from the shared policy folder."""
+    if not os.path.exists(KNOWLEDGE_FILE):
+        return "Internal Policy unavailable."
+    with open(KNOWLEDGE_FILE, 'r') as f:
+        return f.read()
+
+POLICY_TEXT = get_security_policy()
+
+# --- 🚀 EXPERT SWARM AGENTS ---
 
 intel_expert = Agent(
     name="Intel_Expert",
     model=shared_model,
     tools=[check_ip_reputation, check_file_hash],
-    instructions=[
-        "You are an Elite Threat Intel Specialist.",
-        
-        "🚨 DATA GOVERNANCE & PRIVACY PROTOCOL 🚨",
-        "1. SCOPE VERIFICATION: Before calling external tools, check the 'Target IP' category.",
-        "2. NON-ROUTABLE GATE: If the IP is a Loopback address (127.x.x.x) or falls within an RFC 1918 Private range (10.x.x.x, 172.16.x.x-172.31.x.x, 192.168.x.x), DO NOT call 'check_ip_reputation'.",
-        "3. JUSTIFICATION: For Loopback or RFC 1918 IPs, return: 'Bypassed: Internal Private Asset Context. Public reputation lookup not applicable for internal network topology.'",
-        "4. EXTERNAL TARGETS ONLY: Run tools only for valid, public-routable IP addresses and SHA-256/MD5 hashes."
-    ]
+    instructions=["Expert in public threat reputation. Bypass internal/private targets."]
 )
 
 detection_expert = Agent(
     name="Detection_Expert",
     model=shared_model,
-    instructions=[
-        "Identify MITRE ATT&CK techniques from process [1007] telemetry.",
-        "Provide T-code mappings and specific goal descriptions."
-    ]
+    instructions=["Identify MITRE ATT&CK techniques. Focus on T-code accuracy and recon detection."]
 )
 
 compliance_expert = Agent(
     name="Compliance_Expert",
     model=shared_model,
     instructions=[
-        f"Match signals against policy windows and whitelists in: {POLICY_TEXT}",
-        "Focus on Auth [3002] risks (mfa, logon_type)."
+        f"Refer to Security Policy: {POLICY_TEXT}",
+        "1. DEFINITION: Metadata separators (; or PWD=) are NORMAL in logs.",
+        "2. CHAINING CHECK: A command chain is malicious only if NEW BINARIES follow a whitelist binary (e.g., curl ; whoami).",
+        "3. LOGIC: A pure 'sudo curl' exactly matching Section 1.3 is AUTHORIZED, regardless of session-open logs."
     ]
 )
 
-# --- 🧠 THE LEAD ORCHESTRATOR (L3 DECISION BRAIN) ---
+# --- 🧠 THE LEAD ORCHESTRATOR (V8.0 Zero-Bias & Syntax Fixed) ---
 
 lead_analyst = Agent(
     name="SOC_Lead_Orchestrator",
-    role="Senior L3 Director",
     model=shared_model,
-    instructions=[
-        "You are the L3 Director. Your report is a formal legal record of the investigation.",
+    instructions=[  
+        "You are an Elite SOC Forensic Director. You judge sessions based on provided telemetry.",
         
-        "🚨 RESPONSE PROTOCOL (MANDATORY) 🚨",
-        "1. NO CONVERSATION: Do not explain your steps or mention folders. Output ONLY the forensic results.",
-        "2. SINGLE WORD VERDICT: You MUST choose EXACTLY ONE verdict: AUTHORIZED, MALICIOUS, or SUSPICIOUS.",
-        "3. FORMAT: Line 1 MUST be exactly: [DECISION] | VERDICT (Replace VERDICT with your single chosen word).",
-        "4. NO SYMBOLS: Never use # or ##. Use the h2. prefix for headers as defined below.",
-        
-        "⚠️ OUTPUT FORMAT ⚠️",
-        "Line 1: [DECISION] | (MALICIOUS/AUTHORIZED/SUSPICIOUS)",
-        "h2. TECHNICAL ANALYSIS (Merge Technical and Intelligence findings.)",
-        "h2. IDENTITY & CONTEXT AUDIT (Analyze MFA, logon type, and policy windows.)",
-        "h2. MITRE ATT&CK (Select the final technique ID mapping.)",
-        "h2. RECOMMENDED REMEDIATION (Mandatory action plan.)"
+        "🚨 DECISION HIERARCHY (MANDATORY) 🚨",
+        "1. FORCE MALICIOUS: If 'logic_gate_flag' contains 'CRITICAL ALERT', you MUST rule MALICIOUS.",
+        "   - Reason: A logic gate detected suspicious syntax (; or &&) used to hide commands.",
+        "2. CHAIN DETECTION: Examine the full command trace. If you see a whitelisted curl FOLLOWED by 'id', 'whoami', 'cat', or 'ls', flag as MALICIOUS.",
+        "3. LOG_METADATA_BYPASS: Ignore semicolons (;) when they appear in log metadata like 'PWD=/... ; USER=root'. These are not attacks.",
+
+        "🚨 AUTHORIZATION CRITERIA 🚨",
+        "1. MATCH: Rule as AUTHORIZED only if the command is purely Section 1.3 curl with NO secondary actions in the session.",
+        "2. SUDO: Do not flag 'sudo' usage as malicious for the Kali host; it is an expected part of the maintenance window.",
+
+        "⚠️ REPORTING PROTOCOL (JIRA/ADF COMPATIBLE) ⚠️",
+        "• START with exactly: [DECISION] | (WORD). No intro text.",
+        "• Use 'h2.' for all headers (No spaces before h2).",
+        "• Use simple bullets (*) only. Never use numbers (1.) or letters (a.).",
     ],
     markdown=False
 )
 
-# --- 🛠️ FASTAPI SERVICE ---
-app = FastAPI(title="NeoGrid OCSF Autonomous Director Swarm")
+app = FastAPI(title="NeoGrid SOAR V8.5")
 
 @app.post("/analyze")
 async def analyze_incident(data: dict):
+    # Resilience Check: If Tines sends data as a string, try to load it as JSON
     ocsf = data.get("ocsf_data", {})
+    if isinstance(ocsf, str):
+        try: ocsf = json.loads(ocsf)
+        except: ocsf = {"error": "Could not parse OCSF"}
+
     hostname = data.get('hostname', 'unknown')
-    ip = data.get('ip_address', '0.0.0.0')
-    
-    # Context Processing
-    timing_str = "DURING-WORK-HOURS" if data.get('is_business_hours') else "AFTER-HOURS"
-    is_private_ip = any(ip.startswith(prefix) for prefix in ['10.', '192.168.', '172.16.'])
+    # Use fallback if flag is missing
+    gate_flag = data.get("logic_gate_flag") or "NO_GATE_DATA_RECEIVED" 
+    history = data.get("FULL_TERMINAL_HISTORY", "N/A")
 
-    print(f"[*] DIRECTOR: Delegating OCSF-Native triage for {hostname} ({ip})...")
+    print(f"[*] AI-SWARM: Analyzing {hostname} | Flag: {gate_flag}")
 
-    # --- THE JUAN MODEL: ORCHESTRATE DELEGATES SEQUENTIALLY ---
+    # Start Swarm Logic
+    try:
+        det_log = detection_expert.run(f"Command context: {ocsf}").content
+        comp_log = compliance_expert.run(f"Audit trace check: {history}").content
 
-    # A. Reputation Intelligence
-    intel_report = "Director Notice: Target is Private IP. Public Intelligence Bypassed."
-    if not is_private_ip:
-        intel_report = intel_expert.run(f"Gather context for: {ocsf.get('network')}").content
+        mission = f"""
+        VERIFY: {hostname}
+        GATE OPINION: {gate_flag}
+        RAW LOGS: {history}
+        EXPERT 1 (EDR): {det_log}
+        EXPERT 2 (POLICY): {comp_log}
+        """
 
-    # B. Detection & TTPs
-    detection_report = detection_expert.run(f"Map TTPs for process log: {ocsf.get('process')}").content
-
-    # C. Compliance & Identity
-    compliance_report = compliance_expert.run(
-        f"Audit compliance for {hostname}. Context: {timing_str}. AuthLog: {ocsf.get('auth')}"
-    ).content
-
-    # --- 🏗️ THE FINAL SYNTHESIS Turn ---
-
-    mission_dossiers = f"""
-    EXPERT EVIDENCE LOGS:
-    
-    INTEL EVIDENCE [4001]: {intel_report}
-    DETECTION EVIDENCE [1007]: {detection_report}
-    GOVERNANCE EVIDENCE [3002]: {compliance_report}
-    
-    MISSION TARGET: host={hostname} | target_ip={ip} | time_ctx={timing_str}
-
-    TASK: Act as L3 Director. Review Evidence and produce ONE structured Forensic Verdict. No chatter.
-    """
-
-    response = lead_analyst.run(mission_dossiers)
-    
-    return {"verdict_report": response.content}
+        report = lead_analyst.run(mission)
+        return {"verdict_report": report.content}
+    except Exception as e:
+        print(f"[!] ERROR IN AI EXECUTION: {e}")
+        return {"verdict_report": f"[DECISION] | ERROR: System failed during analysis - {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn

