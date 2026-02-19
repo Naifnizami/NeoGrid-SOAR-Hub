@@ -14,125 +14,234 @@
 
 The platform is designed as a **modular microservice ecosystem**, decoupling raw log collection from forensic reasoning.
 
----
+### Core Principles
 
-## 1️⃣ Normalization Engine (OCSF 1.7.0)
+1. **Normalization Engine (OCSF 1.7.0)**  
+   Disparate telemetry (Linux Auditd, Windows Events, Splunk logs) is standardized into vendor-neutral format.
 
-Disparate raw telemetry (Linux Auditd, Windows Events, Splunk logs) is ingested and standardized into the **Open Cybersecurity Schema Framework (OCSF)**. This creates a **vendor-neutral data layer** for AI reasoning.
+2. **Hierarchical Multi-Agent Swarm**
 
-- **Process Activity [1007]** — High-integrity mapping of command-line data and parent-child ancestry  
-- **Authentication [3002]** — Critical evaluation of logon types (RDP vs Local) and MFA status  
-- **Network Activity [4001]** — Contextualizing traffic direction and infrastructure reputation  
+   Lead L3 Orchestrator delegates to:
 
----
+   - Threat Intelligence Agent  
+   - Detection Engineering Agent  
+   - Compliance Agent  
 
-## 2️⃣ Hierarchical Multi-Agent Swarm
+3. **Autonomous Orchestration (n8n)**
 
-A **Lead L3 SOC Orchestrator** acts as the director, autonomously delegating tasks to specialists based on the context of each OCSF object.
-
-| Specialist | Function |
-|------------|----------|
-| 🕵️ **Threat Intel Specialist** | Queries reputation engines for **public infrastructure only** (skips RFC 1918 space) |
-| 🛠 **Detection Specialist** | Maps standardized behaviors to the **MITRE ATT&CK framework** |
-| 🏢 **Compliance & Policy Auditor** | Validates activity against **corporate whitelists** and maintenance windows |
+   Storm Mode bundles alert floods into single case.
 
 ---
 
-## 3️⃣ Automated Response Loop
-
-Dossiers are synthesized by the Director to execute a **closed-loop response**:
-
-| Verdict | Action |
-|--------|--------|
-| **[MALICIOUS]** | Immediate host isolation via Mock EDR RTR module |
-| **[AUTHORIZED]** | Zero-touch auto-resolution via Jira “Fail-Safe” rule |
+## 📊 Automation & Orchestration Logic Breakdown
 
 ---
 
-## 🏛️ Real-World Transition: Policy Tuning & Scaling
+### 1. Webhook Intake Node
 
-NeoGrid is designed to scale from a lab environment to enterprise production **without refactoring core logic**.
+**Purpose:** Entry point
 
-- **Modular Asset Logic** — AssetService can pivot from CSV files to live CMDB APIs (ServiceNow, Snipe-IT, Active Directory)  
-- **Policy Vetting (Tuning Sprint)** — Baselining historical traffic refines thresholds between *SUSPICIOUS* and *AUTHORIZED*  
-- **Knowledge-Base Maturity** — Compliance Specialist supports integration with a **Vector Database (RAG)** of SOPs and governance PDFs  
+Receives alerts from Splunk
 
 ---
 
-## 🧪 Simulation & Validation
+### 2. Shield / Hygiene Layer
 
-| Scenario | Objective | Logical Path | Final Outcome |
-|----------|-----------|-------------|---------------|
-| **Sudo Exploit** | Privilege Escalation | Root command detected → MITRE T1548 → Compliance flags unauthorized sudo | **[TP ALERT] Host Isolated** |
-| **Admin Sync** | Noise Suppression | Policy whitelist match overrides TTP suspicion | **[AUTO-RESOLVED] Archived** |
-| **10-Alert Storm** | Stress Testing | StateManager correlates rapid hits into one Jira ticket | **Deduplication Success** |
+**Purpose:** Clean data
 
----
+Removes:
 
-## 📊 System Logic Flow
+- duplicates
+- malformed JSON
+- hex encoding
 
-```mermaid
-graph TD
-    subgraph Data Source
-        A[Raw SIEM Telemetry] --> B[SOAR Bridge]
-    end
+Extracts:
 
-    subgraph Normalization Layer
-        B --> C{OCSF Normalizer}
-        C -->|Class 1007| P[Process Object]
-        C -->|Class 3002| AU[Auth Object]
-        C -->|Class 4001| N[Network Object]
-    end
-
-    subgraph Hierarchical Swarm Team
-        direction TB
-        P & AU & N --> L[Lead SOC Orchestrator]
-        L -- "(Context-Driven)" --- Gate1{Intel Needed?}
-        Gate1 -->|YES: Public| T[Threat Intel Specialist]
-        Gate1 -->|NO: Private| SK[Lookup Bypassed]
-        L --> D[Detection Specialist]
-        L --> C2[Compliance Auditor]
-    end
-
-    subgraph Outcomes
-        L --> B
-        B -->|v3 API| J[Jira Cloud ADF Report]
-        B -->|RTR| E[Host Isolation Agent]
-        B -->|Webhook| S[Slack OpSec Alerts]
-    end
-```
+- host
+- user
+- process
+- IP
 
 ---
 
-## 📁 Project Structure
+### 3. Storm Guard Logic
 
-```text
-SOC-INTEGRATED-PLATFORM/
-├── scripts/
-├── services/
-│   ├── ai-analyst/
-│   ├── soar-bridge/
-│   └── telemetry-gen/
-├── shared/
-└── docker-compose.yml
-```
+**Purpose:** Prevent ticket flooding
+
+| Alert Count | Action |
+|------------|--------|
+| < 10 | Normal investigation |
+| ≥ 10 | Storm Mode |
+
+Storm Mode:
+
+- Bundles alerts
+- Creates Super Case
+
+---
+
+### 4. The Bridge — OCSF Normalization
+
+Converts Raw Log → OCSF
+
+Example Output:
+
+    {
+      "class_name": "Process Activity",
+      "category_name": "System Activity",
+      "severity": "High",
+      "actor": {},
+      "device": {},
+      "process": {}
+    }
+
+---
+
+### 5. Agno AI Swarm Analysis
+
+**Purpose:** Cognitive SOC reasoning
+
+Model:
+
+Llama-3.3-70B via Groq
+
+Hierarchy:
+
+Lead Orchestrator
+
+Delegates to:
+
+- Threat Intel Agent
+- Detection Agent
+- Compliance Agent
+
+Example Verdict:
+
+    Verdict: CONFIRMED MALICIOUS
+    Technique: T1059 Command Execution
+    Confidence: 94%
+    Action: Host Isolation Recommended
+
+---
+
+### 6. Response Layer
+
+Creates:
+
+- Jira Incident
+- Forensic Report
+- Slack Alert
 
 ---
 
 ## 🛠 Technology Stack
 
-| Layer | Technology |
-|------|------------|
-| **Languages** | Python 3.11 (FastAPI, Pandas, Pydantic) |
-| **Agent Architecture** | Agno (Phidata), Llama-3.3-70B (Groq) |
-| **API Layer** | FastAPI |
-| **Infrastructure** | Docker Compose |
-| **Standards** | OCSF 1.7.0, MITRE ATT&CK, RFC 1918 |
-| **Workflow Engine** | **n8n (Centralized Orchestration)** |
-| **Workflows & Integrations** | Atlassian Jira v3 (ADF Formatter), Slack Webhooks |
+| Layer | Tech |
+|------|------|
+| Language | Python 3.11 |
+| Framework | FastAPI |
+| AI | Agno |
+| LLM | Llama-3.3-70B |
+| Workflow | n8n |
+| Container | Docker |
+| Standard | OCSF |
 
 ---
 
-## 🎯 Final Milestone Confirmation
+## 📁 Project Structure
 
-NeoGrid SOAR Hub provides an end-to-end blueprint for building a **context-aware autonomous security team**, transitioning from static scripts to **resilient, human-like investigative reasoning**.
+    SOC-INTEGRATED-PLATFORM/
+
+    ├── services/
+
+    │   ├── ai-analyst/
+
+    │   ├── soar-bridge/
+
+    │   └── telemetry-gen/
+
+    ├── n8n_storage/
+
+    ├── .env.example
+
+    ├── docker-compose.yml
+
+    └── NeoGrid_SOAR_v10.json
+
+---
+
+# 🚀 Deployment
+
+Clone:
+
+    git clone https://github.com/YOUR_USERNAME/NeoGrid-SOAR-Hub.git
+
+Configure:
+
+    cp .env.example .env
+
+Run:
+
+    docker-compose up -d --build
+
+---
+
+# Deploy Workflow
+
+Open:
+
+    http://localhost:5678
+
+Import:
+
+    NeoGrid_SOAR_v10.json
+
+Activate
+
+---
+
+# 🧪 Testing
+
+Normal test:
+
+    python services/telemetry-gen/src/sender.py 1
+
+Storm test:
+
+    python services/telemetry-gen/src/batch_sender.py 25
+
+---
+
+# 🎯 Capabilities
+
+✔ Autonomous SOC  
+✔ AI Investigation  
+✔ OCSF Native  
+✔ SOAR Automation  
+✔ Jira Integration  
+
+---
+
+# 👨‍💻 Author
+
+Naif Nizami
+
+LinkedIn:
+
+    https://linkedin.com/in/YOUR_LINK
+
+GitHub:
+
+    https://github.com/YOUR_USERNAME
+
+---
+
+# ⚠ Disclaimer
+
+Educational use only
+
+---
+
+# 🏁 Result
+
+Fully autonomous AI SOC platform
